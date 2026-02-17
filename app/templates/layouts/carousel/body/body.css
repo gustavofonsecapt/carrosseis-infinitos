@@ -1,0 +1,80 @@
+/* Body family overrides */
+
+/* V1: Typography-focused with paragraph */
+.body-v1 .content {
+  justify-content: center;
+  gap: 0;
+}
+
+.body-v1 .headline {
+  font-size: 46px;
+  margin-bottom: 32px;
+}
+
+.body-v1 .body {
+  max-width: 88%;
+}
+
+.body-v1 .support {
+  font-size: 18px;
+  color: var(--fg-muted);
+  margin-top: 28px;
+  font-style: italic;
+}
+
+/* V2: Bullets list + optional image window */
+.body-v2 .content {
+  justify-content: center;
+}
+
+.body-v2 .headline {
+  font-size: 42px;
+  margin-bottom: 36px;
+}
+
+.body-v2 .image-zone {
+  height: 340px;
+  margin-bottom: 40px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.body-v2 .image-zone img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.body-v2 .bullets li:last-child {
+  border-bottom: none;
+}
+
+/* V3: Full image + text panel overlay */
+.body-v3 .text-panel {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--bg);
+  padding: 56px var(--pad) var(--pad) var(--pad);
+  z-index: 2;
+}
+
+.body-v3 .text-panel .headline {
+  font-size: 42px;
+  margin-bottom: 24px;
+}
+
+.body-v3 .image-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 420px;
+}
+
+.body-v3 .image-fill img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}

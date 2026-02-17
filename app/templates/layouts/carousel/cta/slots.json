@@ -1,0 +1,16 @@
+{
+  "family": "cta",
+  "format": "carousel",
+  "dimensions": { "width": 1080, "height": 1350 },
+  "slots": {
+    "headline": { "required": true, "max_chars": 50, "max_lines": 2, "description": "Closing headline" },
+    "cta": { "required": true, "max_chars": 40, "description": "Call-to-action text" },
+    "subcta": { "required": false, "max_chars": 60, "description": "Secondary CTA or instruction" },
+    "signature": { "required": true, "max_chars": 40, "description": "Author name or handle" }
+  },
+  "variations": [
+    { "id": "cta_v1", "label": "Central minimalista", "uses_image": false },
+    { "id": "cta_v2", "label": "Editorial com acento", "uses_image": false },
+    { "id": "cta_v3", "label": "Fundo escuro", "uses_image": false }
+  ]
+}
