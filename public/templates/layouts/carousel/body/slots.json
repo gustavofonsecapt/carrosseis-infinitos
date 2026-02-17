@@ -1,0 +1,18 @@
+{
+  "family": "body",
+  "format": "carousel",
+  "dimensions": { "width": 1080, "height": 1350 },
+  "slots": {
+    "headline": { "required": true, "max_chars": 50, "max_lines": 2, "description": "Section title" },
+    "body": { "required": false, "max_chars": 200, "max_lines": 5, "description": "Paragraph text" },
+    "bullets": { "required": false, "max_items": 5, "max_chars_per_item": 55, "description": "Bullet list items" },
+    "support": { "required": false, "max_chars": 80, "description": "Optional support line or quote" },
+    "image": { "required": false, "description": "Framed or background image" },
+    "page_counter": { "required": false, "description": "Slide number indicator (e.g. 3/8)" }
+  },
+  "variations": [
+    { "id": "body_v1", "label": "Parágrafo editorial", "uses_image": false, "primary_slot": "body" },
+    { "id": "body_v2", "label": "Lista com imagem", "uses_image": true, "primary_slot": "bullets" },
+    { "id": "body_v3", "label": "Imagem + painel", "uses_image": true, "primary_slot": "body" }
+  ]
+}

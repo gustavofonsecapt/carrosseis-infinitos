@@ -1,0 +1,133 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=1080">
+<title>Template Gallery — ContentForge</title>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    font-family: system-ui, -apple-system, sans-serif;
+    background: #111;
+    color: #eee;
+    padding: 60px;
+  }
+  h1 { font-size: 32px; font-weight: 700; margin-bottom: 8px; }
+  .subtitle { color: #888; font-size: 16px; margin-bottom: 48px; }
+  h2 { font-size: 20px; font-weight: 600; margin-bottom: 24px; color: #C8A96E; text-transform: uppercase; letter-spacing: 0.1em; font-size: 13px; }
+  .family { margin-bottom: 56px; }
+  .grid { display: flex; gap: 24px; flex-wrap: wrap; margin-bottom: 16px; }
+  .card { background: #1a1a1a; border-radius: 8px; overflow: hidden; }
+  .card iframe {
+    border: none;
+    pointer-events: none;
+  }
+  .carousel-frame { width: 216px; height: 270px; }
+  .carousel-frame iframe { width: 1080px; height: 1350px; transform: scale(0.2); transform-origin: top left; }
+  .story-frame { width: 162px; height: 288px; }
+  .story-frame iframe { width: 1080px; height: 1920px; transform: scale(0.15); transform-origin: top left; }
+  .card-label { padding: 8px 12px; font-size: 12px; color: #888; }
+  .divider { height: 1px; background: #333; margin: 48px 0; }
+</style>
+</head>
+<body>
+
+<h1>ContentForge — Template Gallery</h1>
+<p class="subtitle">15 templates editoriais premium · Prévia com dados fake</p>
+
+<div class="divider"></div>
+
+<div class="family">
+  <h2>Carrossel — Cover</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="carousel-frame"><iframe src="layouts/carousel/cover/cover_v1.html"></iframe></div>
+      <div class="card-label">cover_v1 · Tipográfico</div>
+    </div>
+    <div class="card">
+      <div class="carousel-frame"><iframe src="layouts/carousel/cover/cover_v2.html"></iframe></div>
+      <div class="card-label">cover_v2 · Imagem enquadrada</div>
+    </div>
+    <div class="card">
+      <div class="carousel-frame"><iframe src="layouts/carousel/cover/cover_v3.html"></iframe></div>
+      <div class="card-label">cover_v3 · Full bleed</div>
+    </div>
+  </div>
+</div>
+
+<div class="family">
+  <h2>Carrossel — Body</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="carousel-frame"><iframe src="layouts/carousel/body/body_v1.html"></iframe></div>
+      <div class="card-label">body_v1 · Parágrafo editorial</div>
+    </div>
+    <div class="card">
+      <div class="carousel-frame"><iframe src="layouts/carousel/body/body_v2.html"></iframe></div>
+      <div class="card-label">body_v2 · Lista com imagem</div>
+    </div>
+    <div class="card">
+      <div class="carousel-frame"><iframe src="layouts/carousel/body/body_v3.html"></iframe></div>
+      <div class="card-label">body_v3 · Imagem + painel</div>
+    </div>
+  </div>
+</div>
+
+<div class="family">
+  <h2>Carrossel — CTA</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="carousel-frame"><iframe src="layouts/carousel/cta/cta_v1.html"></iframe></div>
+      <div class="card-label">cta_v1 · Central minimalista</div>
+    </div>
+    <div class="card">
+      <div class="carousel-frame"><iframe src="layouts/carousel/cta/cta_v2.html"></iframe></div>
+      <div class="card-label">cta_v2 · Editorial com acento</div>
+    </div>
+    <div class="card">
+      <div class="carousel-frame"><iframe src="layouts/carousel/cta/cta_v3.html"></iframe></div>
+      <div class="card-label">cta_v3 · Fundo escuro</div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="family">
+  <h2>Stories — Frame</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="story-frame"><iframe src="layouts/stories/frame/story_v1.html"></iframe></div>
+      <div class="card-label">story_v1 · Tipográfico</div>
+    </div>
+    <div class="card">
+      <div class="story-frame"><iframe src="layouts/stories/frame/story_v2.html"></iframe></div>
+      <div class="card-label">story_v2 · Imagem enquadrada</div>
+    </div>
+    <div class="card">
+      <div class="story-frame"><iframe src="layouts/stories/frame/story_v3.html"></iframe></div>
+      <div class="card-label">story_v3 · Full bleed</div>
+    </div>
+  </div>
+</div>
+
+<div class="family">
+  <h2>Stories — CTA</h2>
+  <div class="grid">
+    <div class="card">
+      <div class="story-frame"><iframe src="layouts/stories/cta/story_cta_v1.html"></iframe></div>
+      <div class="card-label">story_cta_v1 · Central limpo</div>
+    </div>
+    <div class="card">
+      <div class="story-frame"><iframe src="layouts/stories/cta/story_cta_v2.html"></iframe></div>
+      <div class="card-label">story_cta_v2 · Editorial</div>
+    </div>
+    <div class="card">
+      <div class="story-frame"><iframe src="layouts/stories/cta/story_cta_v3.html"></iframe></div>
+      <div class="card-label">story_cta_v3 · Fundo escuro</div>
+    </div>
+  </div>
+</div>
+
+</body>
+</html>

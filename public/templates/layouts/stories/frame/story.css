@@ -1,0 +1,92 @@
+/* Story frame family overrides */
+
+/* V1: Clean typography, top-aligned */
+.story-v1 .content {
+  padding-top: 220px;
+  padding-bottom: 300px;
+  justify-content: flex-start;
+}
+
+.story-v1 .headline {
+  font-size: 56px;
+  max-width: 85%;
+}
+
+.story-v1 .support {
+  font-size: 22px;
+  color: var(--fg-secondary);
+  line-height: 1.5;
+  margin-top: 28px;
+  max-width: 80%;
+}
+
+.story-v1 .progress {
+  position: absolute;
+  top: 200px;
+  right: var(--pad);
+}
+
+/* V2: Image window + text below */
+.story-v2 .image-zone {
+  margin: 200px var(--pad) 0 var(--pad);
+  height: 680px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+
+.story-v2 .image-zone img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.story-v2 .text-zone {
+  padding: 40px var(--pad);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+}
+
+.story-v2 .headline {
+  font-size: 44px;
+}
+
+.story-v2 .support {
+  font-size: 20px;
+  color: var(--fg-secondary);
+  line-height: 1.5;
+  margin-top: 20px;
+  max-width: 90%;
+}
+
+.story-v2 .progress {
+  position: absolute;
+  top: 200px;
+  right: var(--pad);
+}
+
+/* V3: Full image + dark overlay */
+.story-v3 .content {
+  justify-content: flex-end;
+  padding-bottom: 320px;
+}
+
+.story-v3 .headline {
+  font-size: 54px;
+  max-width: 88%;
+}
+
+.story-v3 .support {
+  font-size: 21px;
+  line-height: 1.5;
+  margin-top: 24px;
+  max-width: 82%;
+  color: rgba(250,250,248,0.7);
+}
+
+.story-v3 .progress {
+  position: absolute;
+  top: 200px;
+  right: var(--pad);
+}

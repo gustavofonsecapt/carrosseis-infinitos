@@ -1,0 +1,17 @@
+{
+  "family": "cta",
+  "format": "stories_10x",
+  "dimensions": { "width": 1080, "height": 1920 },
+  "safe_areas": { "top": 180, "bottom": 260 },
+  "slots": {
+    "headline": { "required": true, "max_chars": 45, "max_lines": 2, "description": "Closing headline" },
+    "cta": { "required": true, "max_chars": 40, "description": "Call-to-action text" },
+    "trigger_word": { "required": false, "max_chars": 20, "description": "Trigger word for DM automation" },
+    "signature": { "required": true, "max_chars": 40, "description": "Author handle" }
+  },
+  "variations": [
+    { "id": "story_cta_v1", "label": "Central limpo", "uses_image": false },
+    { "id": "story_cta_v2", "label": "Editorial com acento", "uses_image": false },
+    { "id": "story_cta_v3", "label": "Fundo escuro", "uses_image": false }
+  ]
+}
