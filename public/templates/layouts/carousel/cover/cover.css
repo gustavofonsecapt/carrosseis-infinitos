@@ -1,0 +1,65 @@
+/* Cover family overrides */
+
+/* V1: Pure typography, centered elegance */
+.cover-v1 .content {
+  justify-content: center;
+  align-items: flex-start;
+}
+
+.cover-v1 .headline {
+  font-size: 76px;
+  max-width: 85%;
+}
+
+.cover-v1 .subhead {
+  max-width: 70%;
+}
+
+.cover-v1 .accent-bar {
+  width: 48px;
+  height: 3px;
+  background: var(--accent);
+  margin-bottom: 32px;
+}
+
+/* V2: Image window (top) + text (bottom) */
+.cover-v2 .image-zone {
+  height: 620px;
+  margin: var(--pad) var(--pad) 0 var(--pad);
+  overflow: hidden;
+  border: 1px solid var(--border);
+  position: relative;
+}
+
+.cover-v2 .image-zone img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.cover-v2 .text-zone {
+  padding: 48px var(--pad) var(--pad) var(--pad);
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+}
+
+.cover-v2 .headline {
+  font-size: 58px;
+}
+
+/* V3: Full bleed image + dark overlay */
+.cover-v3 .content {
+  justify-content: flex-end;
+  padding-bottom: 120px;
+}
+
+.cover-v3 .headline {
+  font-size: 72px;
+  max-width: 88%;
+}
+
+.cover-v3 .kicker {
+  color: rgba(250,250,248,0.55);
+}

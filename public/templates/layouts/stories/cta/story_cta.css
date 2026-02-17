@@ -1,0 +1,108 @@
+/* Story CTA family overrides */
+
+/* V1: Centered clean */
+.story-cta-v1 .content {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding-top: 220px;
+  padding-bottom: 300px;
+}
+
+.story-cta-v1 .headline {
+  font-size: 50px;
+  max-width: 80%;
+}
+
+.story-cta-v1 .cta-text {
+  margin-top: 48px;
+  font-size: 30px;
+}
+
+.story-cta-v1 .trigger {
+  display: inline-block;
+  margin-top: 20px;
+  padding: 14px 40px;
+  border: 2px solid var(--accent);
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  color: var(--accent);
+}
+
+.story-cta-v1 .signature {
+  margin-top: 56px;
+}
+
+/* V2: With accent divider */
+.story-cta-v2 .content {
+  justify-content: center;
+  padding-top: 220px;
+  padding-bottom: 300px;
+}
+
+.story-cta-v2 .accent-line {
+  margin-bottom: 40px;
+}
+
+.story-cta-v2 .headline {
+  font-size: 48px;
+  max-width: 82%;
+  margin-bottom: 40px;
+}
+
+.story-cta-v2 .cta-text {
+  font-size: 26px;
+}
+
+.story-cta-v2 .trigger {
+  display: inline-block;
+  margin-top: 16px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+}
+
+.story-cta-v2 .signature {
+  position: absolute;
+  bottom: 300px;
+  left: var(--pad);
+}
+
+/* V3: Dark/inverted */
+.story-cta-v3 {
+  background: var(--fg);
+}
+
+.story-cta-v3 .content {
+  justify-content: center;
+  align-items: center;
+  text-align: center;
+  padding-top: 220px;
+  padding-bottom: 300px;
+}
+
+.story-cta-v3 .headline {
+  font-size: 50px;
+  max-width: 82%;
+}
+
+.story-cta-v3 .cta-text {
+  margin-top: 44px;
+  padding: 18px 44px;
+  border: 1px solid rgba(250,250,248,0.3);
+  font-size: 26px;
+}
+
+.story-cta-v3 .trigger {
+  margin-top: 20px;
+  font-size: 20px;
+  font-weight: 700;
+  letter-spacing: 0.15em;
+  color: var(--accent);
+}
+
+.story-cta-v3 .signature {
+  margin-top: 56px;
+}

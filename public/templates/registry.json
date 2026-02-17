@@ -1,0 +1,31 @@
+{
+  "carousel": {
+    "cover": [
+      { "id": "cover_v1", "file": "layouts/carousel/cover/cover_v1.html", "label": "Tipográfico" },
+      { "id": "cover_v2", "file": "layouts/carousel/cover/cover_v2.html", "label": "Imagem enquadrada" },
+      { "id": "cover_v3", "file": "layouts/carousel/cover/cover_v3.html", "label": "Imagem full bleed" }
+    ],
+    "body": [
+      { "id": "body_v1", "file": "layouts/carousel/body/body_v1.html", "label": "Parágrafo editorial" },
+      { "id": "body_v2", "file": "layouts/carousel/body/body_v2.html", "label": "Lista com imagem" },
+      { "id": "body_v3", "file": "layouts/carousel/body/body_v3.html", "label": "Imagem + painel" }
+    ],
+    "cta": [
+      { "id": "cta_v1", "file": "layouts/carousel/cta/cta_v1.html", "label": "Central minimalista" },
+      { "id": "cta_v2", "file": "layouts/carousel/cta/cta_v2.html", "label": "Editorial com acento" },
+      { "id": "cta_v3", "file": "layouts/carousel/cta/cta_v3.html", "label": "Fundo escuro" }
+    ]
+  },
+  "stories": {
+    "frame": [
+      { "id": "story_v1", "file": "layouts/stories/frame/story_v1.html", "label": "Tipográfico limpo" },
+      { "id": "story_v2", "file": "layouts/stories/frame/story_v2.html", "label": "Imagem enquadrada" },
+      { "id": "story_v3", "file": "layouts/stories/frame/story_v3.html", "label": "Imagem full bleed" }
+    ],
+    "cta": [
+      { "id": "story_cta_v1", "file": "layouts/stories/cta/story_cta_v1.html", "label": "Central limpo" },
+      { "id": "story_cta_v2", "file": "layouts/stories/cta/story_cta_v2.html", "label": "Editorial com acento" },
+      { "id": "story_cta_v3", "file": "layouts/stories/cta/story_cta_v3.html", "label": "Fundo escuro" }
+    ]
+  }
+}

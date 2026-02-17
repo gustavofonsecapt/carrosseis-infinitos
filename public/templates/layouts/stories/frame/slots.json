@@ -1,0 +1,18 @@
+{
+  "family": "frame",
+  "format": "stories_10x",
+  "dimensions": { "width": 1080, "height": 1920 },
+  "safe_areas": { "top": 180, "bottom": 260 },
+  "slots": {
+    "headline": { "required": true, "max_chars": 50, "max_lines": 3, "description": "Frame main text" },
+    "support": { "required": false, "max_chars": 80, "max_lines": 2, "description": "Supporting line" },
+    "kicker": { "required": false, "max_chars": 25, "description": "Small label" },
+    "image": { "required": false, "description": "Frame image", "recommended_ratio": "9:16" },
+    "progress": { "required": false, "description": "Progress indicator (e.g. 3/10)" }
+  },
+  "variations": [
+    { "id": "story_v1", "label": "Tipográfico limpo", "uses_image": false },
+    { "id": "story_v2", "label": "Imagem enquadrada", "uses_image": true },
+    { "id": "story_v3", "label": "Imagem full bleed", "uses_image": true }
+  ]
+}
