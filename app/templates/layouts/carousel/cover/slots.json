@@ -1,0 +1,16 @@
+{
+  "family": "cover",
+  "format": "carousel",
+  "dimensions": { "width": 1080, "height": 1350 },
+  "slots": {
+    "kicker": { "required": false, "max_chars": 30, "description": "Small uppercase label above headline" },
+    "headline": { "required": true, "max_chars": 60, "max_lines": 3, "description": "Main title text" },
+    "subhead": { "required": false, "max_chars": 90, "max_lines": 2, "description": "Supporting subtitle" },
+    "image": { "required": false, "description": "Background or framed image", "recommended_ratio": "4:5" }
+  },
+  "variations": [
+    { "id": "cover_v1", "label": "Tipográfico", "uses_image": false },
+    { "id": "cover_v2", "label": "Imagem enquadrada", "uses_image": true },
+    { "id": "cover_v3", "label": "Imagem full bleed", "uses_image": true }
+  ]
+}
