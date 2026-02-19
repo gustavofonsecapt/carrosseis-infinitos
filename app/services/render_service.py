@@ -46,44 +46,72 @@ VIEWPORTS: dict[ProjectType, Viewport] = {
 logger = logging.getLogger(__name__)
 
 
+# ── Appearance resolution helpers ──────────────────────────────────
+
+def _resolve_effective_theme(variant: TemplateVariant, appearance: dict) -> tuple[str, list[str]]:
+    """Return (effective_theme, warnings)."""
+    warnings = []
+    theme_override = appearance.get("theme", "auto")
+    if theme_override in ("light", "dark"):
+        effective = theme_override
+        warnings.append(f"applied_theme_{effective}")
+    else:
+        effective = variant.theme
+    return effective, warnings
+
+
+def _resolve_effective_scrim(variant: TemplateVariant, appearance: dict) -> tuple[ScrimConfig, list[str]]:
+    """Merge slide appearance.scrim over variant defaults. Return (config, warnings)."""
+    warnings = []
+    scrim_override = appearance.get("scrim", {})
+
+    enabled = scrim_override.get("enabled", variant.scrim.enabled)
+    strength = scrim_override.get("strength", variant.scrim.strength)
+    position = scrim_override.get("position", variant.scrim.position)
+    mode = scrim_override.get("mode", variant.scrim.scrim_mode)
+    # Determine color mode from effective theme (dark theme = dark scrim color)
+    color_mode = variant.scrim.mode  # "soft" or "dark"
+
+    if "enabled" in scrim_override and scrim_override["enabled"] != variant.scrim.enabled:
+        warnings.append("scrim_disabled" if not enabled else "scrim_enabled")
+    if "strength" in scrim_override and scrim_override["strength"] != variant.scrim.strength:
+        warnings.append("scrim_strength_changed")
+
+    return ScrimConfig(
+        enabled=enabled,
+        mode=color_mode,
+        strength=strength,
+        position=position,
+        scrim_mode=mode,
+    ), warnings
+
+
 # ── Scrim CSS generators ───────────────────────────────────────────
 
-def _scrim_gradient(scrim: ScrimConfig, text_area: str) -> str:
+def _scrim_gradient_value(scrim: ScrimConfig, effective_theme: str) -> str:
     """Generate a CSS gradient string for scrim overlay."""
-    if scrim.mode == "dark":
+    if effective_theme == "dark" or scrim.mode == "dark":
         base_color = f"rgba(0, 0, 0, {scrim.strength})"
         fade_color = "rgba(0, 0, 0, 0)"
-    else:  # soft / light
+    else:
         base_color = f"rgba(255, 255, 255, {scrim.strength})"
         fade_color = "rgba(255, 255, 255, 0)"
 
-    if text_area == "bottom":
+    pos = scrim.position
+    if pos == "bottom":
         return f"linear-gradient(to top, {base_color} 0%, {base_color} 30%, {fade_color} 70%)"
-    elif text_area == "top":
+    elif pos == "top":
         return f"linear-gradient(to bottom, {base_color} 0%, {base_color} 30%, {fade_color} 70%)"
     else:  # center
         return f"linear-gradient(to bottom, {fade_color} 0%, {base_color} 25%, {base_color} 75%, {fade_color} 100%)"
 
 
-def _build_scrim_css(scrim: ScrimConfig, text_area: str) -> str:
-    """Return full CSS block to inject a scrim overlay via ::before on .slide.
-
-    Uses ::before (not ::after) at z-index 0 so it sits between the
-    background image (z-index auto) and .content (z-index 1 in base.css).
-    This avoids covering text elements.
-    """
-    gradient = _scrim_gradient(scrim, text_area)
-    return f"""
-/* Auto-injected scrim overlay for contrast */
-.slide::before {{
-    content: '';
-    position: absolute;
-    inset: 0;
-    background: {gradient};
-    pointer-events: none;
-    z-index: 0;
-}}
-"""
+def _scrim_box_value(scrim: ScrimConfig, effective_theme: str) -> str:
+    """Generate a solid translucent color for box scrim mode."""
+    if effective_theme == "dark" or scrim.mode == "dark":
+        return f"rgba(0, 0, 0, {scrim.strength})"
+    else:
+        return f"rgba(255, 255, 255, {scrim.strength})"
 
 
 class RenderService:
@@ -183,6 +211,14 @@ class RenderService:
         soup = BeautifulSoup(html, "html.parser")
         warnings: list[str] = []
 
+        # ── Resolve appearance overrides ──
+        appearance = slide.payload.get("appearance", {})
+        effective_theme, theme_warnings = _resolve_effective_theme(variant, appearance)
+        warnings.extend(theme_warnings)
+
+        effective_scrim, scrim_warnings = _resolve_effective_scrim(variant, appearance)
+        warnings.extend(scrim_warnings)
+
         # Inline CSS from <link> tags
         for link in soup.find_all("link", rel="stylesheet"):
             href = link.get("href")
@@ -197,22 +233,48 @@ class RenderService:
             else:
                 link.decompose()
 
-        # Inject scrim overlay when enabled and slide has an image
-        has_image = bool(slide.payload.get("image") or slide.image_path)
-        if variant.scrim.enabled and has_image:
-            scrim_css = _build_scrim_css(variant.scrim, variant.text_area)
-            scrim_style = soup.new_tag("style")
-            scrim_style.string = scrim_css
-            if soup.head:
-                soup.head.append(scrim_style)
-            else:
-                # Insert at beginning of document
-                first = soup.find()
-                if first:
-                    first.insert_before(scrim_style)
-            warnings.append(f"applied_scrim_{variant.scrim.mode}")
-            logger.info("Injected %s scrim (strength=%.2f, area=%s) for slide %s",
-                         variant.scrim.mode, variant.scrim.strength, variant.text_area, slide.index)
+        # ── Apply theme class + scrim vars on .slide element ──
+        slide_el = soup.select_one(".slide")
+        if slide_el:
+            # Remove any legacy dark class
+            classes = slide_el.get("class", [])
+            if "dark" in classes:
+                classes.remove("dark")
+
+            # Add theme class
+            theme_class = f"theme-{effective_theme}"
+            if theme_class not in classes:
+                classes.append(theme_class)
+            slide_el["class"] = classes
+
+            # Build inline style with scrim vars
+            existing_style = slide_el.get("style", "")
+            has_image = bool(slide.payload.get("image") or slide.image_path)
+
+            if effective_scrim.enabled and has_image:
+                if effective_scrim.scrim_mode == "box":
+                    scrim_val = _scrim_box_value(effective_scrim, effective_theme)
+                    existing_style += f" --scrim-bg: transparent; --scrim-box-bg: {scrim_val};"
+                    # Inject scrim-box div before .content
+                    content_el = slide_el.select_one(".content")
+                    if content_el:
+                        box_div = soup.new_tag("div", **{"class": "scrim-box"})
+                        content_el.insert_before(box_div)
+                    warnings.append("applied_scrim_box")
+                else:
+                    scrim_val = _scrim_gradient_value(effective_scrim, effective_theme)
+                    existing_style += f" --scrim-bg: {scrim_val};"
+                    warnings.append(f"applied_scrim_gradient_{effective_scrim.position}")
+                logger.info("Injected scrim (mode=%s, strength=%.2f, pos=%s) for slide %s",
+                             effective_scrim.scrim_mode, effective_scrim.strength,
+                             effective_scrim.position, slide.index)
+            elif not effective_scrim.enabled:
+                existing_style += " --scrim-bg: transparent;"
+                if "scrim_disabled" not in warnings:
+                    warnings.append("scrim_disabled")
+
+            if existing_style.strip():
+                slide_el["style"] = existing_style.strip()
 
         # Fill data-slot values
         for node in soup.select("[data-slot]"):

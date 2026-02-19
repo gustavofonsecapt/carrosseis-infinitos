@@ -127,8 +127,40 @@ Quando um slide usa imagem, o `render_service` injeta automaticamente um overlay
 }
 ```
 
+### Controle de aparência por slide
+
+O usuário pode sobrescrever tema e scrim por slide via `payload.appearance`:
+
+```json
+{
+  "appearance": {
+    "theme": "auto|light|dark",
+    "scrim": {
+      "enabled": true,
+      "strength": 0.25|0.35|0.50,
+      "position": "top|center|bottom",
+      "mode": "gradient|box"
+    }
+  }
+}
+```
+
+**Precedência:**
+```
+slide.payload.appearance > registry.json template defaults > base CSS defaults (light, scrim off)
+```
+
+- `theme: "auto"` → usa o tema do template no registry
+- `theme: "light"/"dark"` → aplica `.theme-light`/`.theme-dark` no elemento `.slide`
+- Scrim `gradient` → pseudo-element `::before` com gradiente posicional
+- Scrim `box` → div `.scrim-box` translúcido com backdrop-filter atrás do `.content`
+
 ### Logs de scrim
-O `render.log` registra `scrim=yes|no` por slide. Warnings incluem `applied_scrim_soft` ou `applied_scrim_dark`.
+O `render.log` registra `scrim=yes|no` por slide. Warnings incluem:
+- `applied_theme_dark`, `applied_theme_light` — tema sobrescrito pelo slide
+- `applied_scrim_gradient_bottom`, `applied_scrim_box` — tipo de scrim aplicado
+- `scrim_disabled`, `scrim_enabled` — scrim alterado vs default do template
+- `scrim_strength_changed` — intensidade diferente do default
 
 ## 9. Referências úteis
 - Envelope de erro padrão (`AppError`): `{"error": {"code": "...", "message": "...", "details": {...}}}`.

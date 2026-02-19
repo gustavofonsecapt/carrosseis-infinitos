@@ -15,8 +15,10 @@ from app.core.config import settings
 @dataclass
 class ScrimConfig:
     enabled: bool = False
-    mode: str = "soft"      # "soft" (light overlay) | "dark" (dark overlay)
-    strength: float = 0.35  # opacity 0.0–1.0
+    mode: str = "soft"          # "soft" (light overlay) | "dark" (dark overlay)
+    strength: float = 0.35      # opacity 0.0–1.0
+    position: str = "bottom"    # "top" | "center" | "bottom"
+    scrim_mode: str = "gradient" # "gradient" | "box"
 
 
 @dataclass
@@ -40,6 +42,8 @@ def _parse_scrim(raw: dict[str, Any] | None) -> ScrimConfig:
         enabled=raw.get("enabled", False),
         mode=raw.get("mode", "soft"),
         strength=raw.get("strength", 0.35),
+        position=raw.get("position", "bottom"),
+        scrim_mode=raw.get("scrim_mode", raw.get("mode_type", "gradient")),
     )
 
 

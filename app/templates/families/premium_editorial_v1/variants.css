@@ -118,7 +118,6 @@
 }
 .cta-content .title { text-align: center; max-width: 720px; }
 .cta-content .body-text { text-align: center; max-width: 620px; color: var(--muted); }
-.slide.dark .cta-content .body-text { color: var(--muted-inv); }
 .cta-content .cta-button { margin-top: 12px; }
 
 /* ── CTA v2: Image accent ── */
@@ -140,9 +139,6 @@
   padding-bottom: var(--pad-story-bottom);
 }
 .slide.story .title { font-size: 6.4rem; }
-.slide.story.dark .img-cover + .overlay--dark {
-  background: linear-gradient(180deg, rgba(15,15,16,0.2) 0%, rgba(15,15,16,0.8) 100%);
-}
 .slide.story .image-hero {
   height: 640px;
 }
