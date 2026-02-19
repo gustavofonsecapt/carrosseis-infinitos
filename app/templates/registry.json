@@ -27,5 +27,31 @@
       { "id": "story_cta_v2", "file": "layouts/stories/cta/story_cta_v2.html", "label": "Editorial com acento" },
       { "id": "story_cta_v3", "file": "layouts/stories/cta/story_cta_v3.html", "label": "Fundo escuro" }
     ]
+  },
+  "premium_editorial_v1": {
+    "carousel": {
+      "cover": [
+        { "id": "pe_cover_v1", "file": "families/premium_editorial_v1/carousel/cover_v1.html", "label": "Type-led Minimal" },
+        { "id": "pe_cover_v2", "file": "families/premium_editorial_v1/carousel/cover_v2.html", "label": "Image-card Editorial" },
+        { "id": "pe_cover_v3", "file": "families/premium_editorial_v1/carousel/cover_v3.html", "label": "Dark Editorial" }
+      ],
+      "body": [
+        { "id": "pe_body_v1", "file": "families/premium_editorial_v1/carousel/body_v1.html", "label": "Type-led Minimal" },
+        { "id": "pe_body_v2", "file": "families/premium_editorial_v1/carousel/body_v2.html", "label": "Image-card + Bullets" },
+        { "id": "pe_body_v3", "file": "families/premium_editorial_v1/carousel/body_v3.html", "label": "Dark Editorial" }
+      ],
+      "cta": [
+        { "id": "pe_cta_v1", "file": "families/premium_editorial_v1/carousel/cta_v1.html", "label": "Minimal CTA" },
+        { "id": "pe_cta_v2", "file": "families/premium_editorial_v1/carousel/cta_v2.html", "label": "Editorial CTA" },
+        { "id": "pe_cta_v3", "file": "families/premium_editorial_v1/carousel/cta_v3.html", "label": "Dark CTA" }
+      ]
+    },
+    "stories": {
+      "frame": [
+        { "id": "pe_story_v1", "file": "families/premium_editorial_v1/stories/frame_v1.html", "label": "Type-led Minimal" },
+        { "id": "pe_story_v2", "file": "families/premium_editorial_v1/stories/frame_v2.html", "label": "Image-card Editorial" },
+        { "id": "pe_story_v3", "file": "families/premium_editorial_v1/stories/frame_v3.html", "label": "Dark Editorial" }
+      ]
+    }
   }
 }

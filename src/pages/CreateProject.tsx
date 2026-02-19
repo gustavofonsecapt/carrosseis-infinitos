@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createProject } from "@/services/api";
-import type { ProjectFormat, ToneType } from "@/types/project";
+import type { ProjectType, ToneType } from "@/types/project";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -12,7 +12,7 @@ import { Link } from "react-router-dom";
 export default function CreateProject() {
   const { type } = useParams<{ type: string }>();
   const navigate = useNavigate();
-  const format: ProjectFormat = type === "stories" ? "stories_10x" : "carousel";
+  const format: ProjectType = type === "stories" ? "stories_10x" : "carousel";
   const isCarousel = format === "carousel";
 
   const [title, setTitle] = useState("");

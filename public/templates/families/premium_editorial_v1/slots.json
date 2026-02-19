@@ -1,0 +1,52 @@
+{
+  "family": "premium_editorial_v1",
+  "formats": {
+    "carousel": { "width": 1080, "height": 1350 },
+    "stories": { "width": 1080, "height": 1920 }
+  },
+  "safe_areas": {
+    "carousel": { "all": 80 },
+    "stories": { "top": 120, "bottom": 160, "sides": 80 }
+  },
+  "slots": {
+    "brand":       { "required": false, "max_chars": 32, "description": "Brand name or URL" },
+    "category":    { "required": false, "max_chars": 32, "description": "Category label" },
+    "kicker":      { "required": false, "max_chars": 32, "description": "Small uppercase kicker" },
+    "title":       { "required": true,  "max_chars": 68, "description": "Main headline" },
+    "subtitle":    { "required": false, "max_chars": 90, "description": "Supporting subtitle" },
+    "body":        { "required": false, "max_chars": 220, "description": "Body paragraph" },
+    "bullets":     { "required": false, "max_items": 5, "max_chars_per_item": 48, "description": "Bullet list items" },
+    "number":      { "required": false, "max_chars": 10, "description": "Slide number (e.g. 03/08)" },
+    "image":       { "required": false, "description": "Main image", "recommended_ratio": "4:5" },
+    "cta_title":   { "required": false, "max_chars": 50, "description": "CTA headline" },
+    "cta_body":    { "required": false, "max_chars": 180, "description": "CTA body text" },
+    "cta_button":  { "required": false, "max_chars": 20, "description": "CTA button label" },
+    "footer_note": { "required": false, "max_chars": 32, "description": "Small footer note" }
+  },
+  "variations": {
+    "carousel": {
+      "cover": [
+        { "id": "pe_cover_v1", "label": "Type-led Minimal", "uses_image": true, "primary_slots": ["title", "subtitle", "kicker"] },
+        { "id": "pe_cover_v2", "label": "Image-card Editorial", "uses_image": true, "primary_slots": ["title", "subtitle", "image"] },
+        { "id": "pe_cover_v3", "label": "Dark Editorial", "uses_image": true, "primary_slots": ["title", "subtitle", "image"] }
+      ],
+      "body": [
+        { "id": "pe_body_v1", "label": "Type-led Minimal", "uses_image": false, "primary_slots": ["title", "body", "bullets"] },
+        { "id": "pe_body_v2", "label": "Image-card + Bullets", "uses_image": true, "primary_slots": ["title", "bullets", "image"] },
+        { "id": "pe_body_v3", "label": "Dark Editorial", "uses_image": false, "primary_slots": ["title", "body"] }
+      ],
+      "cta": [
+        { "id": "pe_cta_v1", "label": "Minimal CTA", "uses_image": false, "primary_slots": ["cta_title", "cta_body", "cta_button"] },
+        { "id": "pe_cta_v2", "label": "Editorial CTA", "uses_image": true, "primary_slots": ["cta_title", "cta_body", "cta_button"] },
+        { "id": "pe_cta_v3", "label": "Dark CTA", "uses_image": false, "primary_slots": ["cta_title", "cta_body", "cta_button"] }
+      ]
+    },
+    "stories": {
+      "frame": [
+        { "id": "pe_story_v1", "label": "Type-led Minimal", "uses_image": false, "primary_slots": ["title", "body", "number"] },
+        { "id": "pe_story_v2", "label": "Image-card Editorial", "uses_image": true, "primary_slots": ["title", "subtitle", "image"] },
+        { "id": "pe_story_v3", "label": "Dark Editorial", "uses_image": true, "primary_slots": ["title", "subtitle", "image"] }
+      ]
+    }
+  }
+}

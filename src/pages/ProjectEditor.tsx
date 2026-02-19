@@ -61,12 +61,10 @@ export default function ProjectEditor() {
     setLoading("");
   }
 
-  async function handleSaveSlide(slideN: number, data: Partial<CarouselSlide> | Partial<StoryFrame>) {
+  async function handleSaveSlide(slideN: number, data: Partial<UiSlide>) {
     const updatedSlide = await updateSlide(project!.id, slideN, data);
     setProject((prev) => prev ? { ...prev, slides: prev.slides?.map((s) => (s.n === slideN ? updatedSlide : s)) } : prev);
     setEditingSlide(null);
-    setProject(updated);
-    
   }
 
   async function handleUploadImage(slideN: number, file: File) {
