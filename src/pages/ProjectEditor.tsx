@@ -136,17 +136,24 @@ export default function ProjectEditor() {
 
       {/* Slides grid */}
       {slides.length > 0 && (
-        <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 mb-8">
-          {slides.map((s) => (
-            <div
-              key={s.n}
-              className="cursor-pointer hover:ring-2 hover:ring-primary/40 rounded-lg transition-all"
-              onClick={() => setEditingSlide(s.n)}
-            >
-              <SlidePreview format={project.type} data={s} settings={settings} />
-            </div>
-          ))}
-        </div>
+        <>
+          <div className="grid gap-4 grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 mb-4">
+            {slides.map((s) => (
+              <div
+                key={s.n}
+                className="cursor-pointer hover:ring-2 hover:ring-primary/40 rounded-lg transition-all"
+                onClick={() => setEditingSlide(s.n)}
+              >
+                <SlidePreview format={project.type} data={s} settings={settings} />
+              </div>
+            ))}
+          </div>
+          {slides.some((s) => !s.render_path && s.headline) && (
+            <p className="text-xs text-amber-600 mb-8">
+              ⚠ Slides editados desde a última renderização. Clique em "Renderizar PNGs" para atualizar.
+            </p>
+          )}
+        </>
       )}
 
       {/* Slide editor */}

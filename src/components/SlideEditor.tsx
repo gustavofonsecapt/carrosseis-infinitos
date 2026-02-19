@@ -1,5 +1,6 @@
 import { useState, useRef, useEffect } from "react";
 import type { UiSlide, SlideAppearance, TemplateVariantInfo } from "@/types/project";
+import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
@@ -145,6 +146,7 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
     }
 
     onSave(payload);
+    toast.success("Card salvo! Renderize novamente para ver o resultado final.");
     onClose();
   }
 

@@ -1,4 +1,6 @@
 import type { UiSlide } from "@/types/project";
+import { Badge } from "@/components/ui/badge";
+
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8100";
 
 interface SlidePreviewProps {
@@ -9,13 +11,51 @@ interface SlidePreviewProps {
 
 export default function SlidePreview({ format, data, settings }: SlidePreviewProps) {
   const isCarousel = format === "carousel";
+
+  // If we have a rendered PNG, show it directly
+  if (data.render_path) {
+    return (
+      <div
+        className={`relative overflow-hidden rounded-lg border bg-card ${
+          isCarousel ? "slide-preview-carousel" : "slide-preview-story"
+        }`}
+        style={{ maxWidth: isCarousel ? 270 : 180 }}
+      >
+        <img
+          src={`${API_BASE}/${data.render_path}`}
+          alt={data.headline || `Slide ${data.n}`}
+          className="w-full h-auto rounded-lg"
+        />
+        {/* Slide number badge */}
+        <div
+          className="absolute top-2 right-2 w-5 h-5 rounded-full bg-foreground/80 text-background flex items-center justify-center text-[8px] font-bold"
+          style={{ zIndex: 3 }}
+        >
+          {data.n}
+        </div>
+        {/* Template variant badge */}
+        {data.template_variant && (
+          <Badge
+            variant="secondary"
+            className="absolute bottom-2 left-2 text-[7px] px-1.5 py-0.5"
+            style={{ zIndex: 3 }}
+          >
+            {data.template_variant}
+          </Badge>
+        )}
+      </div>
+    );
+  }
+
+  // Fallback: simplified text preview
   const bullets = data.bullets || [];
+  const hasContent = !!(data.headline || data.body || bullets.length > 0);
 
   // Resolve appearance for preview
   const appearance = data.appearance;
   const effectiveTheme = appearance?.theme === "dark" ? "dark"
     : appearance?.theme === "light" ? "light"
-    : null; // auto = no override
+    : null;
   const isDarkPreview = effectiveTheme === "dark";
   const scrim = appearance?.scrim;
   const scrimActive = scrim?.enabled && data.image_path;
@@ -24,9 +64,7 @@ export default function SlidePreview({ format, data, settings }: SlidePreviewPro
   let scrimStyle: React.CSSProperties = {};
   if (scrimActive && scrim) {
     const alpha = scrim.strength || 0.35;
-    const baseColor = isDarkPreview
-      ? `rgba(0,0,0,${alpha})`
-      : `rgba(0,0,0,${alpha})`;
+    const baseColor = `rgba(0,0,0,${alpha})`;
     const fade = "rgba(0,0,0,0)";
 
     let gradient: string;
@@ -59,9 +97,9 @@ export default function SlidePreview({ format, data, settings }: SlidePreviewPro
       style={{ maxWidth: isCarousel ? 270 : 180 }}
     >
       {/* Background image or color */}
-      {(data.image_path) ? (
+      {data.image_path ? (
         <img
-          src={data.image_path ? `${API_BASE}/${data.image_path}` : ""}
+          src={`${API_BASE}/${data.image_path}`}
           alt=""
           className="absolute inset-0 w-full h-full object-cover"
         />
@@ -116,7 +154,7 @@ export default function SlidePreview({ format, data, settings }: SlidePreviewPro
 
         {/* Bottom */}
         <div>
-          {(data.cta) && (
+          {data.cta && (
             <div className="rounded-md bg-primary/90 text-primary-foreground text-[9px] font-semibold text-center py-1.5 px-2">
               {data.cta}
             </div>
@@ -141,6 +179,28 @@ export default function SlidePreview({ format, data, settings }: SlidePreviewPro
         }`} style={{ zIndex: 3 }}>
           {isDarkPreview ? "🌙" : "☀️"}
         </div>
+      )}
+
+      {/* Template variant badge */}
+      {data.template_variant && (
+        <Badge
+          variant="secondary"
+          className="absolute bottom-2 left-2 text-[7px] px-1.5 py-0.5"
+          style={{ zIndex: 3 }}
+        >
+          {data.template_variant}
+        </Badge>
+      )}
+
+      {/* Stale indicator - has content but no render */}
+      {hasContent && !data.render_path && (
+        <Badge
+          variant="outline"
+          className="absolute bottom-2 right-2 text-[6px] px-1 py-0 border-amber-500/50 text-amber-600"
+          style={{ zIndex: 3 }}
+        >
+          Desatualizado
+        </Badge>
       )}
     </div>
   );
