@@ -5,6 +5,7 @@ import type {
   UiSlide,
   Slide as ApiSlide,
   AppSettings,
+  TemplateSelection,
 } from "@/types/project";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8100";
@@ -63,6 +64,7 @@ export async function createProject(data: {
   type: ProjectType;
   title: string;
   slides_count: number;
+  template_selection?: TemplateSelection;
 }): Promise<Project> {
   return http<Project>("/api/projects", {
     method: "POST",
