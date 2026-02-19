@@ -8,19 +8,20 @@
 </head>
 <body>
 <div class="slide cta-v3">
-  <div class="content">
+  <img data-slot="image" class="img-cover" src="../../assets/images/placeholder.jpg" alt="">
+  <div class="overlay overlay--dark"></div>
+  <div class="content content--between">
     <div style="display:flex;justify-content:space-between;align-items:center">
+      <span data-slot="category" class="category">Categoria</span>
       <span data-slot="brand" class="brand">petriafonseca.com</span>
-      <span data-slot="number" class="number">08/08</span>
     </div>
-    <div class="cta-content">
-      <div class="accent-pill" data-slot="kicker">Exclusivo</div>
-      <h2 data-slot="cta_title" class="title">Pronto para o próximo nível?</h2>
-      <div class="rule rule--accent"></div>
-      <p data-slot="cta_body" class="body-text">Siga para receber conteúdo editorial premium toda semana. Transforme conhecimento em resultado real.</p>
-      <span data-slot="cta_button" class="cta-button">Seguir agora</span>
+    <div class="cta-v3__center-block">
+      <h2 data-slot="cta_title" class="title title--lg" style="text-align:center;max-width:100%">Título de conclusão impactante</h2>
     </div>
-    <span data-slot="footer_note" class="footer-note" style="text-align:center;display:block">@petriafonseca · conteúdo semanal</span>
+    <div class="cta-v3__bottom-block">
+      <p data-slot="cta_body" class="subtitle" style="text-align:center">Subtítulo complementar do CTA</p>
+      <span data-slot="cta_button" class="cta-link">Link de ação →</span>
+    </div>
   </div>
 </div>
 </body>

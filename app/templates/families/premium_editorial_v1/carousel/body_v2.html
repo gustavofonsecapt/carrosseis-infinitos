@@ -9,27 +9,21 @@
 <body>
 <div class="slide body-v2">
   <div class="content content--between">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <span data-slot="category" class="category">Categoria</span>
-      <span data-slot="number" class="number">04/08</span>
-    </div>
-    <div class="image-hero" style="margin-top:32px">
-      <img data-slot="image" src="../../assets/images/placeholder.jpg" alt="">
-    </div>
-    <div class="caption-block">
-      <span data-slot="kicker" class="kicker">Passo 4</span>
-      <h2 data-slot="title" class="title title--sm">Crie um calendário editorial simples</h2>
-      <div class="rule"></div>
-      <ul data-slot="bullets" class="bullets">
-        <li>Mapeie os pilares de conteúdo do mês</li>
-        <li>Defina formatos para cada pilar</li>
-        <li>Reserve um dia para produção em lote</li>
-        <li>Revise performance toda sexta-feira</li>
-      </ul>
-    </div>
-    <div style="display:flex;justify-content:space-between;align-items:center">
+    <div class="body-v2__header">
+      <span data-slot="category" class="category">categoria</span>
       <span data-slot="brand" class="brand">petriafonseca.com</span>
-      <span data-slot="footer_note" class="footer-note">Deslize →</span>
+    </div>
+    <div class="body-v2__text-top">
+      <p data-slot="body" class="body-text body-text--lg">Texto principal do slide com conteúdo editorial. Pode ser um parágrafo longo que ocupa a parte superior do card. <strong>Destaque em negrito</strong></p>
+    </div>
+    <div class="body-v2__image-zone">
+      <img data-slot="image" class="img-cover" src="../../assets/images/placeholder.jpg" alt="">
+      <div class="body-v2__image-scrim"></div>
+      <div class="body-v2__image-text">
+        <div class="body-v2__arrow-icon">➜</div>
+        <h2 data-slot="title" class="title title--sm" style="color:#fff"><strong>Título sobre a imagem</strong></h2>
+        <p data-slot="subtitle" class="subtitle" style="color:rgba(255,255,255,0.8)">Texto complementar sobre a imagem com scrim para legibilidade</p>
+      </div>
     </div>
   </div>
 </div>

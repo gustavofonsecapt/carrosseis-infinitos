@@ -7,22 +7,22 @@
 <link rel="stylesheet" href="../variants.css">
 </head>
 <body>
-<div class="slide body-v3">
+<div class="slide body-v3 theme-dark">
   <div class="content content--between">
-    <div style="display:flex;justify-content:space-between;align-items:center">
+    <div class="body-v3__header">
+      <span data-slot="category" class="category">categoria</span>
       <span data-slot="brand" class="brand">petriafonseca.com</span>
-      <span data-slot="number" class="number">05/08</span>
     </div>
-    <div class="text-block">
-      <span data-slot="kicker" class="kicker" style="color:var(--accent)">Insight</span>
-      <div class="gap-xs"></div>
-      <h2 data-slot="title" class="title">A maioria desiste cedo demais</h2>
-      <div class="rule rule--accent"></div>
-      <p data-slot="body" class="body-text">Resultados reais em conteúdo editorial exigem pelo menos 90 dias de consistência. A maioria das marcas desiste antes de completar o primeiro mês.</p>
-      <div class="gap-md"></div>
-      <p data-slot="subtitle" class="subtitle" style="font-style:italic;border-left:3px solid var(--accent);padding-left:24px">"Persistência vence talento quando talento não persiste."</p>
+    <div class="body-v3__text-top">
+      <p data-slot="body" class="body-text body-text--lg">Texto principal do slide com conteúdo editorial. Pode ser um parágrafo que ocupa a parte superior do card. <strong>Destaque em negrito</strong></p>
     </div>
-    <span data-slot="footer_note" class="footer-note">Deslize para continuar →</span>
+    <div class="body-v3__image-card">
+      <img data-slot="image" src="../../assets/images/placeholder.jpg" alt="" class="img-card" style="width:100%;height:100%;object-fit:cover">
+    </div>
+    <div class="body-v3__text-bottom">
+      <h2 data-slot="title" class="title title--sm"><strong>Título abaixo da imagem</strong> com continuação do texto</h2>
+      <p data-slot="subtitle" class="subtitle">Subtítulo complementar abaixo</p>
+    </div>
   </div>
 </div>
 </body>
