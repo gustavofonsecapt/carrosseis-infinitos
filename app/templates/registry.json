@@ -1,56 +1,56 @@
 {
   "carousel": {
     "cover": [
-      { "id": "cover_v1", "file": "layouts/carousel/cover/cover_v1.html", "label": "Tipográfico" },
-      { "id": "cover_v2", "file": "layouts/carousel/cover/cover_v2.html", "label": "Imagem enquadrada" },
-      { "id": "cover_v3", "file": "layouts/carousel/cover/cover_v3.html", "label": "Imagem full bleed" }
+      { "id": "cover_v1", "file": "layouts/carousel/cover/cover_v1.html", "label": "Tipográfico", "theme": "light", "scrim": { "enabled": false }, "text_area": "center" },
+      { "id": "cover_v2", "file": "layouts/carousel/cover/cover_v2.html", "label": "Imagem enquadrada", "theme": "light", "scrim": { "enabled": true, "mode": "soft", "strength": 0.3 }, "text_area": "bottom" },
+      { "id": "cover_v3", "file": "layouts/carousel/cover/cover_v3.html", "label": "Imagem full bleed", "theme": "dark", "scrim": { "enabled": true, "mode": "dark", "strength": 0.45 }, "text_area": "bottom" }
     ],
     "body": [
-      { "id": "body_v1", "file": "layouts/carousel/body/body_v1.html", "label": "Parágrafo editorial" },
-      { "id": "body_v2", "file": "layouts/carousel/body/body_v2.html", "label": "Lista com imagem" },
-      { "id": "body_v3", "file": "layouts/carousel/body/body_v3.html", "label": "Imagem + painel" }
+      { "id": "body_v1", "file": "layouts/carousel/body/body_v1.html", "label": "Parágrafo editorial", "theme": "light", "scrim": { "enabled": false }, "text_area": "center" },
+      { "id": "body_v2", "file": "layouts/carousel/body/body_v2.html", "label": "Lista com imagem", "theme": "light", "scrim": { "enabled": true, "mode": "soft", "strength": 0.25 }, "text_area": "bottom" },
+      { "id": "body_v3", "file": "layouts/carousel/body/body_v3.html", "label": "Imagem + painel", "theme": "light", "scrim": { "enabled": true, "mode": "soft", "strength": 0.35 }, "text_area": "bottom" }
     ],
     "cta": [
-      { "id": "cta_v1", "file": "layouts/carousel/cta/cta_v1.html", "label": "Central minimalista" },
-      { "id": "cta_v2", "file": "layouts/carousel/cta/cta_v2.html", "label": "Editorial com acento" },
-      { "id": "cta_v3", "file": "layouts/carousel/cta/cta_v3.html", "label": "Fundo escuro" }
+      { "id": "cta_v1", "file": "layouts/carousel/cta/cta_v1.html", "label": "Central minimalista", "theme": "light", "scrim": { "enabled": false }, "text_area": "center" },
+      { "id": "cta_v2", "file": "layouts/carousel/cta/cta_v2.html", "label": "Editorial com acento", "theme": "light", "scrim": { "enabled": false }, "text_area": "center" },
+      { "id": "cta_v3", "file": "layouts/carousel/cta/cta_v3.html", "label": "Fundo escuro", "theme": "dark", "scrim": { "enabled": false }, "text_area": "center" }
     ]
   },
   "stories": {
     "frame": [
-      { "id": "story_v1", "file": "layouts/stories/frame/story_v1.html", "label": "Tipográfico limpo" },
-      { "id": "story_v2", "file": "layouts/stories/frame/story_v2.html", "label": "Imagem enquadrada" },
-      { "id": "story_v3", "file": "layouts/stories/frame/story_v3.html", "label": "Imagem full bleed" }
+      { "id": "story_v1", "file": "layouts/stories/frame/story_v1.html", "label": "Tipográfico limpo", "theme": "light", "scrim": { "enabled": false }, "text_area": "center" },
+      { "id": "story_v2", "file": "layouts/stories/frame/story_v2.html", "label": "Imagem enquadrada", "theme": "light", "scrim": { "enabled": true, "mode": "soft", "strength": 0.3 }, "text_area": "bottom" },
+      { "id": "story_v3", "file": "layouts/stories/frame/story_v3.html", "label": "Imagem full bleed", "theme": "dark", "scrim": { "enabled": true, "mode": "dark", "strength": 0.45 }, "text_area": "bottom" }
     ],
     "cta": [
-      { "id": "story_cta_v1", "file": "layouts/stories/cta/story_cta_v1.html", "label": "Central limpo" },
-      { "id": "story_cta_v2", "file": "layouts/stories/cta/story_cta_v2.html", "label": "Editorial com acento" },
-      { "id": "story_cta_v3", "file": "layouts/stories/cta/story_cta_v3.html", "label": "Fundo escuro" }
+      { "id": "story_cta_v1", "file": "layouts/stories/cta/story_cta_v1.html", "label": "Central limpo", "theme": "light", "scrim": { "enabled": false }, "text_area": "center" },
+      { "id": "story_cta_v2", "file": "layouts/stories/cta/story_cta_v2.html", "label": "Editorial com acento", "theme": "light", "scrim": { "enabled": false }, "text_area": "center" },
+      { "id": "story_cta_v3", "file": "layouts/stories/cta/story_cta_v3.html", "label": "Fundo escuro", "theme": "dark", "scrim": { "enabled": false }, "text_area": "center" }
     ]
   },
   "premium_editorial_v1": {
     "carousel": {
       "cover": [
-        { "id": "pe_cover_v1", "file": "families/premium_editorial_v1/carousel/cover_v1.html", "label": "Type-led Minimal" },
-        { "id": "pe_cover_v2", "file": "families/premium_editorial_v1/carousel/cover_v2.html", "label": "Image-card Editorial" },
-        { "id": "pe_cover_v3", "file": "families/premium_editorial_v1/carousel/cover_v3.html", "label": "Dark Editorial" }
+        { "id": "pe_cover_v1", "file": "families/premium_editorial_v1/carousel/cover_v1.html", "label": "Type-led Minimal", "theme": "light", "scrim": { "enabled": true, "mode": "soft", "strength": 0.2 }, "text_area": "center" },
+        { "id": "pe_cover_v2", "file": "families/premium_editorial_v1/carousel/cover_v2.html", "label": "Image-card Editorial", "theme": "light", "scrim": { "enabled": true, "mode": "soft", "strength": 0.35 }, "text_area": "bottom" },
+        { "id": "pe_cover_v3", "file": "families/premium_editorial_v1/carousel/cover_v3.html", "label": "Dark Editorial", "theme": "dark", "scrim": { "enabled": true, "mode": "dark", "strength": 0.45 }, "text_area": "bottom" }
       ],
       "body": [
-        { "id": "pe_body_v1", "file": "families/premium_editorial_v1/carousel/body_v1.html", "label": "Type-led Minimal" },
-        { "id": "pe_body_v2", "file": "families/premium_editorial_v1/carousel/body_v2.html", "label": "Image-card + Bullets" },
-        { "id": "pe_body_v3", "file": "families/premium_editorial_v1/carousel/body_v3.html", "label": "Dark Editorial" }
+        { "id": "pe_body_v1", "file": "families/premium_editorial_v1/carousel/body_v1.html", "label": "Type-led Minimal", "theme": "light", "scrim": { "enabled": false }, "text_area": "center" },
+        { "id": "pe_body_v2", "file": "families/premium_editorial_v1/carousel/body_v2.html", "label": "Image-card + Bullets", "theme": "light", "scrim": { "enabled": true, "mode": "soft", "strength": 0.3 }, "text_area": "bottom" },
+        { "id": "pe_body_v3", "file": "families/premium_editorial_v1/carousel/body_v3.html", "label": "Dark Editorial", "theme": "dark", "scrim": { "enabled": false }, "text_area": "center" }
       ],
       "cta": [
-        { "id": "pe_cta_v1", "file": "families/premium_editorial_v1/carousel/cta_v1.html", "label": "Minimal CTA" },
-        { "id": "pe_cta_v2", "file": "families/premium_editorial_v1/carousel/cta_v2.html", "label": "Editorial CTA" },
-        { "id": "pe_cta_v3", "file": "families/premium_editorial_v1/carousel/cta_v3.html", "label": "Dark CTA" }
+        { "id": "pe_cta_v1", "file": "families/premium_editorial_v1/carousel/cta_v1.html", "label": "Minimal CTA", "theme": "light", "scrim": { "enabled": false }, "text_area": "center" },
+        { "id": "pe_cta_v2", "file": "families/premium_editorial_v1/carousel/cta_v2.html", "label": "Editorial CTA", "theme": "light", "scrim": { "enabled": true, "mode": "soft", "strength": 0.25 }, "text_area": "center" },
+        { "id": "pe_cta_v3", "file": "families/premium_editorial_v1/carousel/cta_v3.html", "label": "Dark CTA", "theme": "dark", "scrim": { "enabled": false }, "text_area": "center" }
       ]
     },
     "stories": {
       "frame": [
-        { "id": "pe_story_v1", "file": "families/premium_editorial_v1/stories/frame_v1.html", "label": "Type-led Minimal" },
-        { "id": "pe_story_v2", "file": "families/premium_editorial_v1/stories/frame_v2.html", "label": "Image-card Editorial" },
-        { "id": "pe_story_v3", "file": "families/premium_editorial_v1/stories/frame_v3.html", "label": "Dark Editorial" }
+        { "id": "pe_story_v1", "file": "families/premium_editorial_v1/stories/frame_v1.html", "label": "Type-led Minimal", "theme": "light", "scrim": { "enabled": false }, "text_area": "center" },
+        { "id": "pe_story_v2", "file": "families/premium_editorial_v1/stories/frame_v2.html", "label": "Image-card Editorial", "theme": "light", "scrim": { "enabled": true, "mode": "soft", "strength": 0.35 }, "text_area": "bottom" },
+        { "id": "pe_story_v3", "file": "families/premium_editorial_v1/stories/frame_v3.html", "label": "Dark Editorial", "theme": "dark", "scrim": { "enabled": true, "mode": "dark", "strength": 0.45 }, "text_area": "bottom" }
       ]
     }
   }

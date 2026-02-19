@@ -77,7 +77,60 @@ Recrie a base com `Base.metadata.create_all` rodando no startup.
 5. `GET /export` e conferir o ZIP baixado.
 6. Registrar tempos e tamanhos em `data/_e2e/metrics.json`.
 
-## 6. Referências úteis
+## 7. Slot Constraints (texto nunca quebra layout)
+
+O sistema garante que o texto gerado pela IA respeita os limites definidos em `slots.json`:
+
+### Fonte da verdade
+- Layouts clássicos: `app/templates/layouts/{format}/{role}/slots.json`
+- Famílias: `app/templates/families/{family}/slots.json`
+
+### Pipeline de 3 camadas
+1. **Prompt hard constraints** – O `outline_service` carrega os limites e os injeta no prompt com instruções explícitas para respeitar cada limite.
+2. **Auto-rewrite (compress)** – Se um slot excede >15% do limite, o `openai_service.compress_slot()` reescreve automaticamente o texto para caber, preservando sentido e estilo.
+3. **Truncation (fallback)** – `enforce_slot_limits()` trunca o que ainda exceder. Warnings são logados.
+
+### Composition hints
+O `build_composition_hints()` analisa o `slots.json` e orienta a IA:
+- Se `bullets.max_items >= 3` e `body.max_chars <= 120` → prioriza bullets
+- Se `body.max_chars >= 180` → permite parágrafo curto
+- Headlines curtos (≤50 chars) recebem instrução de impacto
+
+### Warnings expostos
+Cada slide pode conter `warnings[]` no response:
+```json
+["title truncated to 68 chars", "applied_scrim_soft", "image_missing_disk"]
+```
+
+## 8. Scrim overlay (legibilidade garantida)
+
+Quando um slide usa imagem, o `render_service` injeta automaticamente um overlay CSS para garantir contraste.
+
+### Como funciona
+1. O `registry.json` define metadados por variante: `theme`, `scrim`, `text_area`.
+2. No render, se `scrim.enabled: true` E o slide tem imagem, um `::after` pseudo-element é adicionado ao `.slide`.
+3. O gradiente é posicionado conforme `text_area` (top/center/bottom).
+
+### Modos de scrim
+| Modo | Cor base | Uso |
+|------|----------|-----|
+| `soft` | `rgba(255,255,255, strength)` | Templates claros com imagem |
+| `dark` | `rgba(0,0,0, strength)` | Templates escuros com imagem |
+
+### Configuração no registry.json
+```json
+{
+  "id": "cover_v3",
+  "theme": "dark",
+  "scrim": { "enabled": true, "mode": "dark", "strength": 0.45 },
+  "text_area": "bottom"
+}
+```
+
+### Logs de scrim
+O `render.log` registra `scrim=yes|no` por slide. Warnings incluem `applied_scrim_soft` ou `applied_scrim_dark`.
+
+## 9. Referências úteis
 - Envelope de erro padrão (`AppError`): `{"error": {"code": "...", "message": "...", "details": {...}}}`.
 - Templates e slots: `app/templates/registry.json` + `app/templates/layouts/.../slots.json`.
 - Runbook complementar: README.md (seção "Teste rápido com curl").

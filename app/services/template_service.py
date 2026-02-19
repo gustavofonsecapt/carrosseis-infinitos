@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import json
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from functools import cached_property
 from pathlib import Path
 from typing import Any
@@ -13,14 +13,45 @@ from app.core.config import settings
 
 
 @dataclass
+class ScrimConfig:
+    enabled: bool = False
+    mode: str = "soft"      # "soft" (light overlay) | "dark" (dark overlay)
+    strength: float = 0.35  # opacity 0.0–1.0
+
+
+@dataclass
 class TemplateVariant:
     id: str
     file: str
     label: str
+    theme: str = "light"          # "light" | "dark"
+    scrim: ScrimConfig = field(default_factory=ScrimConfig)
+    text_area: str = "center"     # "top" | "center" | "bottom"
 
 
-# Known family keys in registry.json (top-level keys that are families, not formats)
+# Known format keys in registry.json (top-level keys that are formats, not families)
 _FORMAT_KEYS = {"carousel", "stories"}
+
+
+def _parse_scrim(raw: dict[str, Any] | None) -> ScrimConfig:
+    if not raw:
+        return ScrimConfig()
+    return ScrimConfig(
+        enabled=raw.get("enabled", False),
+        mode=raw.get("mode", "soft"),
+        strength=raw.get("strength", 0.35),
+    )
+
+
+def _parse_variant(v: dict[str, Any], file_path: Path) -> TemplateVariant:
+    return TemplateVariant(
+        id=v["id"],
+        file=str(file_path),
+        label=v["label"],
+        theme=v.get("theme", "light"),
+        scrim=_parse_scrim(v.get("scrim")),
+        text_area=v.get("text_area", "center"),
+    )
 
 
 class TemplateRegistry:
@@ -43,12 +74,9 @@ class TemplateRegistry:
         families: dict[str, Any] = {}
         for key, value in self.registry.items():
             if key in _FORMAT_KEYS:
-                # Legacy flat layouts — group as "classic"
                 continue
-            # Family key (e.g. premium_editorial_v1)
             families[key] = value
 
-        # Also expose classic layouts as a virtual family
         classic: dict[str, Any] = {}
         for fmt in _FORMAT_KEYS:
             if fmt in self.registry:
@@ -60,17 +88,15 @@ class TemplateRegistry:
 
     def get_variant(self, family_or_format: str, role_key: str, variant_id: str, *, format_key: str | None = None) -> TemplateVariant:
         """
-        Resolve a template variant.
+        Resolve a template variant with full metadata (theme, scrim, text_area).
 
         For legacy layouts:  get_variant("carousel", "cover", "cover_v1")
         For families:        get_variant("premium_editorial_v1", "cover", "pe_cover_v1", format_key="carousel")
         """
         try:
             if format_key and family_or_format not in _FORMAT_KEYS:
-                # Family-based lookup: registry[family][format][role]
                 variants_list = self.registry[family_or_format][format_key][role_key]
             else:
-                # Legacy flat lookup: registry[format][role]
                 variants_list = self.registry[family_or_format][role_key]
         except KeyError as exc:
             raise AppError("template_not_found", "Template family/role not found", status.HTTP_404_NOT_FOUND) from exc
@@ -80,14 +106,23 @@ class TemplateRegistry:
                 file_path = self._templates_root / variant["file"]
                 if not file_path.exists():
                     raise AppError("template_not_found", f"Template file missing: {file_path}", status.HTTP_500_INTERNAL_SERVER_ERROR)
-                return TemplateVariant(id=variant_id, file=str(file_path), label=variant["label"])
+                return _parse_variant(variant, file_path)
 
         raise AppError("template_not_found", f"Template variant '{variant_id}' not found", status.HTTP_404_NOT_FOUND)
 
-    def get_slots(self, family: str) -> dict[str, Any]:
-        slots_path = self._templates_root / "layouts" / family / "slots.json"
+    def get_slots(self, role_path: str) -> dict[str, Any]:
+        """Load slots.json for a layout role path like 'carousel/cover'."""
+        slots_path = self._templates_root / "layouts" / role_path / "slots.json"
         if not slots_path.exists():
             raise AppError("template_not_found", "Template slots not found", status.HTTP_404_NOT_FOUND)
+        with slots_path.open("r", encoding="utf-8") as f:
+            return json.load(f)
+
+    def get_family_slots(self, family: str) -> dict[str, Any]:
+        """Load slots.json for a template family (e.g. 'premium_editorial_v1')."""
+        slots_path = self._templates_root / "families" / family / "slots.json"
+        if not slots_path.exists():
+            raise AppError("template_not_found", f"Family slots not found: {family}", status.HTTP_404_NOT_FOUND)
         with slots_path.open("r", encoding="utf-8") as f:
             return json.load(f)
 
