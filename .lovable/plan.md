@@ -1,157 +1,61 @@
 
 
-## Roteiro role-aware com capacidade real do template
+## Problema
 
-### Problema
+O `SlidePreview` e um componente React simplificado que mostra headline/subhead/body/bullets como texto puro. Ele **nao usa o campo `template_variant`** para nada visual --- entao mudar o template e salvar nao causa nenhuma mudanca visivel no card.
 
-O prompt atual envia constraints genéricas para a OpenAI sem distinguir quais slots cada role (cover/body/cta) realmente usa. Resultado: o cover recebe body/bullets, o CTA recebe texto longo, e os body slides nao adaptam entre bullets vs paragrafo conforme o template.
-
-Alem disso, a familia `premium_editorial_v1` usa nomes de slot diferentes dos layouts classicos (ex: `title` em vez de `headline`, `cta_title` em vez de `headline` no CTA). O prompt precisa refletir isso.
+Alem disso, o campo `render_path` (PNG renderizado pelo backend) nunca e exibido no preview, mesmo quando disponivel.
 
 ---
 
-### 1. Nova funcao: `derive_slot_capabilities` em `app/utils/slots.py`
+## Solucao
 
-Adicionar funcao que analisa um slot_schema e retorna feature flags:
+### 1. Mostrar imagem renderizada (render_path) quando disponivel
 
-```text
-def derive_slot_capabilities(slot_schema) -> dict:
-    slots = slot_schema.get("slots", {})
-    return {
-        "supports_title": "title" in slots or "headline" in slots,
-        "supports_subtitle": "subtitle" in slots or "subhead" in slots,
-        "supports_kicker": "kicker" in slots,
-        "supports_body": "body" in slots,
-        "supports_bullets": "bullets" in slots,
-        "supports_cta_title": "cta_title" in slots,
-        "supports_cta_body": "cta_body" in slots,
-        "supports_cta_button": "cta_button" in slots,
-        "supports_brand": "brand" in slots,
-        "supports_number": "number" in slots,
-        "supports_image": "image" in slots,
-        "title_key": "title" if "title" in slots else "headline",
-        "subtitle_key": "subtitle" if "subtitle" in slots else "subhead",
-        "bullets_strategy": True if ("bullets" in slots and slots["bullets"].get("max_items", 0) >= 3) else False,
-        "body_strategy": True if ("body" in slots and slots["body"].get("max_chars", 0) >= 100) else False,
-    }
-```
+Quando o slide ja foi renderizado pelo backend (status `rendered`), o `SlidePreview` deve exibir a imagem PNG real em vez do preview simplificado de texto. Isso mostra exatamente como o template ficara.
 
-Tambem adicionar `build_role_schema` que gera a descricao de campos permitidos por role:
+- Se `render_path` existe: mostrar a imagem PNG como card
+- Se nao: manter o preview de texto simplificado atual (fallback)
 
-```text
-def build_role_schema(role, caps, slot_schema) -> str:
-    # Para cover: so title/subtitle/kicker/brand/number
-    # Para body: title + (bullets OU body) + brand/number
-    # Para cta: cta_title + cta_button + (cta_body se existir) + brand
-```
+### 2. Badge de template variant no SlidePreview
+
+Adicionar um badge visual no canto do card mostrando qual variante esta selecionada (ex: "v2", "v3"). Isso da feedback imediato ao usuario de que a mudanca foi salva, mesmo antes de re-renderizar.
+
+### 3. Invalidar render_path no frontend apos salvar
+
+O backend ja limpa `render_path = None` quando o payload muda. Mas o frontend precisa refletir isso: apos salvar, o card volta ao preview de texto (indicando que precisa re-renderizar para ver o resultado final com o novo template).
+
+### 4. Feedback visual pos-save
+
+Adicionar um toast de confirmacao ao salvar e um indicador visual (badge "Precisa renderizar") nos cards cujo `render_path` e null mas o projeto ja foi renderizado antes.
 
 ---
 
-### 2. Refatorar `_build_carousel_prompt` em `outline_service.py`
+## Detalhes tecnicos
 
-Mudancas:
+### Arquivo: `src/components/SlidePreview.tsx`
 
-- Usar `derive_slot_capabilities` para cada role (cover, body, cta)
-- Gerar o JSON schema de exemplo **dinamicamente** com base nos slots reais
-- Instruir explicitamente quais campos sao **proibidos** por role:
+- Verificar se `data.render_path` existe; se sim, renderizar `<img src={API_BASE}/{render_path}>` como conteudo principal do card
+- Adicionar badge de template variant (canto inferior esquerdo): mostrar `data.template_variant` se definido (ex: "body_v2")
+- Adicionar badge "Desatualizado" quando `render_path` e null e o slide tem conteudo (ja foi editado)
 
-```text
-COVER (slide 1):
-  Campos OBRIGATORIOS: title (max 68), subtitle (max 90), brand (max 32)
-  Campos OPCIONAIS: kicker (max 32), number (max 10)
-  PROIBIDO: body, bullets, cta_title, cta_button, cta_body
+### Arquivo: `src/components/SlideEditor.tsx`
 
-BODY (slides 2-7):
-  Campos OBRIGATORIOS: title (max 68)
-  Estrategia: USE BULLETS (3-5 itens, max 48 chars/item) — o template e bullets-first
-  Campos OPCIONAIS: brand, number
-  PROIBIDO: cta_title, cta_button, cta_body, subtitle
+- Na funcao `handleSave`: adicionar toast de confirmacao (`sonner`) apos `onSave(payload)`
+- Garantir que o payload enviado inclui todos os campos existentes do slide para nao perder dados (merge com `data` original)
 
-CTA (slide 8):
-  Campos OBRIGATORIOS: cta_title (max 50), cta_button (max 20)
-  Campos OPCIONAIS: cta_body (max 180), brand
-  PROIBIDO: body, bullets, subtitle, kicker
-```
+### Arquivo: `src/pages/ProjectEditor.tsx`
 
-- O JSON de exemplo deve usar os nomes reais dos slots (title vs headline conforme a familia)
+- Sem mudancas estruturais --- o fluxo de save ja atualiza o state corretamente via `setProject`
+- Adicionar indicador textual abaixo do grid: "Slides editados desde a ultima renderizacao. Clique em Renderizar PNGs para atualizar."
 
 ---
 
-### 3. Refatorar `_build_stories_prompt`
-
-Mesma logica:
-- Frame 1: headline curto + brand (hook)
-- Frames 2-9: headline + support (curtos)
-- Frame 10 (CTA): headline + cta + trigger_word + brand
-
----
-
-### 4. Atualizar `_parse_response` para limpar slots proibidos
-
-Apos receber o JSON da OpenAI e antes do enforce_slot_limits, adicionar um passo de **sanitizacao por role**:
-
-```text
-def _strip_forbidden_slots(entry, role, caps):
-    if role == "cover":
-        for key in ["body", "bullets", "cta_title", "cta_button", "cta_body"]:
-            entry.pop(key, None)
-    elif role == "cta":
-        for key in ["body", "bullets", "subtitle", "subhead", "kicker"]:
-            entry.pop(key, None)
-    # body: remover cta_*
-```
-
-Isso garante que mesmo se a IA retornar campos extras, eles sao descartados.
-
----
-
-### 5. Atualizar `_fallback_payload` (stub)
-
-O fallback atual gera body/bullets/cta no cover. Corrigir para respeitar as mesmas regras:
-- Cover: so title + subtitle + brand + number
-- Body: title + bullets (ou body) + number
-- CTA: cta_title + cta_button + brand
-
----
-
-### 6. Adaptar `_get_slot_schema` para retornar por role
-
-Problema atual: `get_family_slots` retorna o slots.json inteiro da familia (com TODOS os slots: title, body, bullets, cta_title, etc.). Nao distingue por role.
-
-Solucao: nova funcao `get_family_slots_for_role(family, format, role)` no template_service que:
-1. Carrega o slots.json da familia
-2. Busca a variacao selecionada (ou primeira) no `variations[format][role]`
-3. Filtra os slots para retornar apenas os `primary_slots` + slots globais (brand, number, image)
-
-Isso faz com que o outline_service receba constraints **apenas dos slots relevantes** para aquele role.
-
----
-
-### 7. Adicionar teste unitario
-
-Criar `app/tests/test_outline_roles.py`:
-
-- Gerar fallback payload para carousel
-- Validar: cover nao tem body/bullets/cta
-- Validar: cta nao tem body/bullets
-- Validar: body tem title + (bullets ou body)
-- Validar: todos os slots respeitam limites do slots.json
-
----
-
-### Arquivos modificados
+## Arquivos modificados
 
 | Arquivo | Mudanca |
 |---|---|
-| `app/utils/slots.py` | Adicionar `derive_slot_capabilities()` e `build_role_schema()` |
-| `app/services/outline_service.py` | Refatorar prompts para role-aware, adicionar `_strip_forbidden_slots`, corrigir fallback |
-| `app/services/template_service.py` | Adicionar `get_family_slots_for_role(family, format, role)` |
-| `app/tests/test_outline_roles.py` | Teste unitario de validacao por role |
-| `RUNBOOK.md` | Documentar regras de composicao por role |
-
-### Arquivos NAO modificados
-
-- `openai_service.py` — sem mudanca, compress_slot continua funcionando
-- Templates HTML/CSS — sem mudanca
-- Frontend — sem mudanca (ja consome o JSON corretamente)
+| `src/components/SlidePreview.tsx` | Mostrar render_path quando disponivel, badge de variant, badge de desatualizado |
+| `src/components/SlideEditor.tsx` | Toast de confirmacao, merge de payload com dados originais |
+| `src/pages/ProjectEditor.tsx` | Indicador de slides desatualizados |
 
