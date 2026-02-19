@@ -166,12 +166,12 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
           <Label className="text-xs flex items-center gap-1.5">
             <LayoutTemplate className="w-3.5 h-3.5" /> Template do card
           </Label>
-          <Select value={templateVariant || ""} onValueChange={setTemplateVariant}>
+          <Select value={templateVariant || "__default__"} onValueChange={(v) => setTemplateVariant(v === "__default__" ? "" : v)}>
             <SelectTrigger className="h-9">
               <SelectValue placeholder="Padrão do projeto" />
             </SelectTrigger>
             <SelectContent>
-              <SelectItem value="">Padrão do projeto</SelectItem>
+              <SelectItem value="__default__">Padrão do projeto</SelectItem>
               {availableVariants.map((v) => (
                 <SelectItem key={v.id} value={v.id}>
                   {v.label} {v.theme === "dark" ? "🌙" : "☀️"}
