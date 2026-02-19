@@ -24,6 +24,12 @@ export interface Slide {
   render_path: string | null;
 }
 
+export interface TemplateVariantInfo {
+  id: string;
+  label: string;
+  theme: string;
+}
+
 // Enriched slide for frontend UI
 export interface UiSlide {
   n: number;
@@ -45,6 +51,8 @@ export interface UiSlide {
   trigger_word?: string;
   // Appearance overrides
   appearance?: SlideAppearance;
+  // Per-slide template variant override
+  template_variant?: string;
 }
 
 export interface Project {

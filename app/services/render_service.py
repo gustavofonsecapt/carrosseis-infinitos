@@ -180,13 +180,18 @@ class RenderService:
         format_key = FAMILY_MAP[project.type]
         family_name = selection.get("family") if isinstance(selection, dict) else None
 
-        selected_id = None
-        if isinstance(selection, dict):
-            format_block = selection.get(format_key)
-            if isinstance(format_block, dict):
-                selected_id = format_block.get(role_key)
-            else:
-                selected_id = selection.get(role_key)
+        # Per-slide variant override (from payload.template_variant)
+        per_slide_variant = slide.payload.get("template_variant") if slide.payload else None
+
+        selected_id = per_slide_variant  # prioritize per-slide choice
+
+        if not selected_id:
+            if isinstance(selection, dict):
+                format_block = selection.get(format_key)
+                if isinstance(format_block, dict):
+                    selected_id = format_block.get(role_key)
+                else:
+                    selected_id = selection.get(role_key)
 
         if family_name and family_name != "classic":
             if not selected_id:

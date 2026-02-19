@@ -45,6 +45,7 @@ function mapApiSlideToUiSlide(apiSlide: ApiSlide): UiSlide {
     progress: p.progress,
     trigger_word: p.trigger_word,
     appearance: p.appearance || undefined,
+    template_variant: p.template_variant || undefined,
   };
 }
 

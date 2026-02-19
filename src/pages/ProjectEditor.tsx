@@ -154,6 +154,7 @@ export default function ProjectEditor() {
         <SlideEditor
           format={project.type}
           data={slides.find((s) => s.n === editingSlide)!}
+          familyName={project.template_selection?.family as string | undefined}
           onSave={(data) => handleSaveSlide(editingSlide, data)}
           onUploadImage={(file) => handleUploadImage(editingSlide, file)}
           onClose={() => setEditingSlide(null)}
