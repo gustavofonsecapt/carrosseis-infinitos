@@ -66,24 +66,22 @@ def _scrim_gradient(scrim: ScrimConfig, text_area: str) -> str:
 
 
 def _build_scrim_css(scrim: ScrimConfig, text_area: str) -> str:
-    """Return full CSS block to inject a scrim overlay via ::after on .slide."""
+    """Return full CSS block to inject a scrim overlay via ::before on .slide.
+
+    Uses ::before (not ::after) at z-index 0 so it sits between the
+    background image (z-index auto) and .content (z-index 1 in base.css).
+    This avoids covering text elements.
+    """
     gradient = _scrim_gradient(scrim, text_area)
     return f"""
 /* Auto-injected scrim overlay for contrast */
-.slide {{
-    position: relative;
-}}
-.slide::after {{
+.slide::before {{
     content: '';
     position: absolute;
     inset: 0;
     background: {gradient};
     pointer-events: none;
-    z-index: 1;
-}}
-.slide [data-slot] {{
-    position: relative;
-    z-index: 2;
+    z-index: 0;
 }}
 """
 
