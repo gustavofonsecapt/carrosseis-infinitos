@@ -6,6 +6,7 @@ import type {
   Slide as ApiSlide,
   AppSettings,
   TemplateSelection,
+  SlideAppearance,
 } from "@/types/project";
 
 const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8100";
@@ -43,6 +44,7 @@ function mapApiSlideToUiSlide(apiSlide: ApiSlide): UiSlide {
     kicker: p.kicker,
     progress: p.progress,
     trigger_word: p.trigger_word,
+    appearance: p.appearance || undefined,
   };
 }
 

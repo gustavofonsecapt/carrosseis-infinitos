@@ -2,16 +2,33 @@
    Premium Editorial v1 — Design Tokens & Base
    ═══════════════════════════════════════════════ */
 
-/* — Tokens — */
+/* — Theme tokens — */
+.theme-light {
+  --bg: #fbfbf8;
+  --surface: #f2f2ed;
+  --ink: #111111;
+  --muted: rgba(17,17,17,0.55);
+  --line: rgba(17,17,17,0.12);
+  --shadow-card: 0 2px 24px rgba(0,0,0,0.06);
+  --scrim-color: rgba(0,0,0,0.35);
+}
+.theme-dark {
+  --bg: #0f0f10;
+  --surface: #1a1a1c;
+  --ink: #f5f5f0;
+  --muted: rgba(245,245,240,0.55);
+  --line: rgba(245,245,240,0.12);
+  --shadow-card: 0 2px 24px rgba(0,0,0,0.25);
+  --scrim-color: rgba(0,0,0,0.55);
+}
+
+/* — Fallback tokens (when no theme class is applied) — */
 :root {
   --bg: #fbfbf8;
-  --bg-dark: #0f0f10;
+  --surface: #f2f2ed;
   --ink: #111111;
-  --ink-inv: #f5f5f0;
   --muted: rgba(17,17,17,0.55);
-  --muted-inv: rgba(245,245,240,0.55);
   --line: rgba(17,17,17,0.12);
-  --line-inv: rgba(245,245,240,0.12);
   --accent: #2f6df6;
   --radius-card: 24px;
   --radius-pill: 999px;
@@ -21,6 +38,7 @@
   --gutter: 24px;
   --max-text: 540px;
   --shadow-card: 0 2px 24px rgba(0,0,0,0.06);
+  --scrim-color: rgba(0,0,0,0.35);
   --grain: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
 }
 
@@ -49,21 +67,21 @@ body {
   height: 1350px;
   overflow: hidden;
   background: var(--bg);
+  color: var(--ink);
 }
 .slide.story {
   height: 1920px;
 }
-.slide.dark {
-  background: var(--bg-dark);
-  color: var(--ink-inv);
+
+/* — Scrim overlay (injected via --scrim-bg inline var) — */
+.slide::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: var(--scrim-bg, transparent);
+  pointer-events: none;
+  z-index: 0;
 }
-.slide.dark .muted,
-.slide.dark .category,
-.slide.dark .brand,
-.slide.dark .footer-note,
-.slide.dark .number { color: var(--muted-inv); }
-.slide.dark .rule { background: var(--line-inv); }
-.slide.dark .accent-pill { background: rgba(245,245,240,0.08); color: var(--ink-inv); }
 
 /* — Grain overlay — */
 .slide::after {
@@ -96,7 +114,7 @@ body {
   justify-content: flex-end;
 }
 
-/* — Typography classes — */
+/* — Typography classes (all token-driven) — */
 .brand {
   font-family: 'Helvetica Neue', 'Arial', sans-serif;
   font-size: 2.4rem;
@@ -128,7 +146,7 @@ body {
   line-height: 1.12;
   letter-spacing: -0.02em;
   max-width: var(--max-text);
-  color: inherit;
+  color: var(--ink);
 }
 .title--lg { font-size: 8.4rem; }
 .title--sm { font-size: 5.6rem; }
@@ -147,8 +165,6 @@ body {
   color: var(--ink);
   max-width: var(--max-text);
 }
-.slide.dark .body-text { color: var(--ink-inv); }
-.slide.dark .subtitle { color: var(--muted-inv); }
 
 .bullets {
   list-style: none;
@@ -161,9 +177,8 @@ body {
   line-height: 1.45;
   padding: 18px 0;
   border-bottom: 1px solid var(--line);
-  color: inherit;
+  color: var(--ink);
 }
-.slide.dark .bullets li { border-color: var(--line-inv); }
 .bullets li:last-child { border-bottom: none; }
 
 .number {
@@ -205,10 +220,6 @@ body {
   background: var(--ink);
   color: var(--bg);
 }
-.slide.dark .accent-pill {
-  background: var(--ink-inv);
-  color: var(--bg-dark);
-}
 
 /* — Image — */
 .img-card {
@@ -246,10 +257,6 @@ body {
   background: var(--ink);
   color: var(--bg);
   text-align: center;
-}
-.slide.dark .cta-button {
-  background: var(--ink-inv);
-  color: var(--bg-dark);
 }
 
 /* — Spacing utilities — */
@@ -291,3 +298,13 @@ body {
 .col-span-8 { grid-column: span 8; }
 .col-span-6 { grid-column: span 6; }
 .col-span-4 { grid-column: span 4; }
+
+/* — Scrim box mode — */
+.scrim-box {
+  position: absolute;
+  inset: 0;
+  z-index: 1;
+  background: var(--scrim-box-bg, transparent);
+  backdrop-filter: blur(2px);
+  pointer-events: none;
+}

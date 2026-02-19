@@ -3,6 +3,16 @@ export type SlideRole = "cover" | "body" | "cta" | "frame" | "frame_cta";
 export type ToneType = "soft" | "medium" | "direct";
 export type ProjectStatus = "draft" | "outlined" | "rendering" | "rendered";
 
+export interface SlideAppearance {
+  theme: "auto" | "light" | "dark";
+  scrim: {
+    enabled: boolean;
+    strength: number;
+    position: "top" | "center" | "bottom";
+    mode: "gradient" | "box";
+  };
+}
+
 // Raw slide from backend
 export interface Slide {
   id: string;
@@ -33,6 +43,8 @@ export interface UiSlide {
   kicker?: string;
   progress?: string;
   trigger_word?: string;
+  // Appearance overrides
+  appearance?: SlideAppearance;
 }
 
 export interface Project {
