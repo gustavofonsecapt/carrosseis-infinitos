@@ -7,7 +7,7 @@ from pathlib import Path
 from time import perf_counter
 from uuid import UUID
 
-from bs4 import BeautifulSoup
+from bs4 import BeautifulSoup, Tag
 from fastapi import status
 
 from app.core.errors import AppError
@@ -16,7 +16,7 @@ from sqlalchemy.orm import Session
 
 from app.core.config import settings
 from app.models import Project, ProjectType, Slide, SlideRole
-from app.services.template_service import TemplateVariant, template_registry
+from app.services.template_service import ScrimConfig, TemplateVariant, template_registry
 
 Viewport = tuple[int, int]
 
@@ -46,6 +46,48 @@ VIEWPORTS: dict[ProjectType, Viewport] = {
 logger = logging.getLogger(__name__)
 
 
+# ── Scrim CSS generators ───────────────────────────────────────────
+
+def _scrim_gradient(scrim: ScrimConfig, text_area: str) -> str:
+    """Generate a CSS gradient string for scrim overlay."""
+    if scrim.mode == "dark":
+        base_color = f"rgba(0, 0, 0, {scrim.strength})"
+        fade_color = "rgba(0, 0, 0, 0)"
+    else:  # soft / light
+        base_color = f"rgba(255, 255, 255, {scrim.strength})"
+        fade_color = "rgba(255, 255, 255, 0)"
+
+    if text_area == "bottom":
+        return f"linear-gradient(to top, {base_color} 0%, {base_color} 30%, {fade_color} 70%)"
+    elif text_area == "top":
+        return f"linear-gradient(to bottom, {base_color} 0%, {base_color} 30%, {fade_color} 70%)"
+    else:  # center
+        return f"linear-gradient(to bottom, {fade_color} 0%, {base_color} 25%, {base_color} 75%, {fade_color} 100%)"
+
+
+def _build_scrim_css(scrim: ScrimConfig, text_area: str) -> str:
+    """Return full CSS block to inject a scrim overlay via ::after on .slide."""
+    gradient = _scrim_gradient(scrim, text_area)
+    return f"""
+/* Auto-injected scrim overlay for contrast */
+.slide {{
+    position: relative;
+}}
+.slide::after {{
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: {gradient};
+    pointer-events: none;
+    z-index: 1;
+}}
+.slide [data-slot] {{
+    position: relative;
+    z-index: 2;
+}}
+"""
+
+
 class RenderService:
     def __init__(self, db: Session):
         self.db = db
@@ -73,7 +115,9 @@ class RenderService:
 
                         log_entry = (
                             f"{datetime.utcnow().isoformat()} slide={slide.index} role={slide.role.value} "
-                            f"template={variant.id} duration={duration:.3f}s "
+                            f"template={variant.id} theme={variant.theme} "
+                            f"scrim={'yes' if variant.scrim.enabled else 'no'} "
+                            f"duration={duration:.3f}s "
                             f"warnings={','.join(warnings) if warnings else 'none'}\n"
                         )
                         log_file.write(log_entry)
@@ -85,7 +129,7 @@ class RenderService:
 
     async def _render_slide(self, page: Page, project: Project, slide: Slide) -> tuple[Path, TemplateVariant, list[str]]:
         variant = self._resolve_variant(project, slide)
-        html_content, warnings = self._build_html(slide, variant.file)
+        html_content, warnings = self._build_html(slide, variant)
         html_path, png_path = self._target_paths(project.id, slide.index)
         html_path.write_text(html_content, encoding="utf-8")
 
@@ -107,10 +151,9 @@ class RenderService:
         if not role_key:
             raise AppError("template_not_found", f"Unsupported role {slide.role}", status.HTTP_400_BAD_REQUEST)
 
-        format_key = FAMILY_MAP[project.type]  # "carousel" or "stories"
+        format_key = FAMILY_MAP[project.type]
         family_name = selection.get("family") if isinstance(selection, dict) else None
 
-        # Determine variant id from selection
         selected_id = None
         if isinstance(selection, dict):
             format_block = selection.get(format_key)
@@ -120,9 +163,7 @@ class RenderService:
                 selected_id = selection.get(role_key)
 
         if family_name and family_name != "classic":
-            # Family-based lookup
             if not selected_id:
-                # Default to first variant in the family
                 try:
                     family_variants = template_registry.registry[family_name][format_key][role_key]
                     selected_id = family_variants[0]["id"]
@@ -130,16 +171,13 @@ class RenderService:
                     raise AppError("template_not_found", f"Family {family_name} has no {format_key}/{role_key}", status.HTTP_404_NOT_FOUND)
             return template_registry.get_variant(family_name, role_key, selected_id, format_key=format_key)
         else:
-            # Legacy flat lookup
             if not selected_id:
                 family_variants = template_registry.registry[format_key][role_key]
                 selected_id = family_variants[0]["id"]
             return template_registry.get_variant(format_key, role_key, selected_id)
 
-    # ... keep existing code (_build_html, _asset_uri, _target_paths, _render_log_path)
-
-    def _build_html(self, slide: Slide, template_file: str) -> tuple[str, list[str]]:
-        template_path = Path(template_file)
+    def _build_html(self, slide: Slide, variant: TemplateVariant) -> tuple[str, list[str]]:
+        template_path = Path(variant.file)
         if not template_path.exists():
             raise AppError("template_not_found", "Template file missing", status.HTTP_500_INTERNAL_SERVER_ERROR)
 
@@ -147,6 +185,7 @@ class RenderService:
         soup = BeautifulSoup(html, "html.parser")
         warnings: list[str] = []
 
+        # Inline CSS from <link> tags
         for link in soup.find_all("link", rel="stylesheet"):
             href = link.get("href")
             if not href:
@@ -160,6 +199,24 @@ class RenderService:
             else:
                 link.decompose()
 
+        # Inject scrim overlay when enabled and slide has an image
+        has_image = bool(slide.payload.get("image") or slide.image_path)
+        if variant.scrim.enabled and has_image:
+            scrim_css = _build_scrim_css(variant.scrim, variant.text_area)
+            scrim_style = soup.new_tag("style")
+            scrim_style.string = scrim_css
+            if soup.head:
+                soup.head.append(scrim_style)
+            else:
+                # Insert at beginning of document
+                first = soup.find()
+                if first:
+                    first.insert_before(scrim_style)
+            warnings.append(f"applied_scrim_{variant.scrim.mode}")
+            logger.info("Injected %s scrim (strength=%.2f, area=%s) for slide %s",
+                         variant.scrim.mode, variant.scrim.strength, variant.text_area, slide.index)
+
+        # Fill data-slot values
         for node in soup.select("[data-slot]"):
             slot_name = node.get("data-slot")
             value = slide.payload.get(slot_name)
