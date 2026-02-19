@@ -85,10 +85,24 @@ O sistema garante que o texto gerado pela IA respeita os limites definidos em `s
 - Layouts clássicos: `app/templates/layouts/{format}/{role}/slots.json`
 - Famílias: `app/templates/families/{family}/slots.json`
 
-### Pipeline de 3 camadas
-1. **Prompt hard constraints** – O `outline_service` carrega os limites e os injeta no prompt com instruções explícitas para respeitar cada limite.
-2. **Auto-rewrite (compress)** – Se um slot excede >15% do limite, o `openai_service.compress_slot()` reescreve automaticamente o texto para caber, preservando sentido e estilo.
-3. **Truncation (fallback)** – `enforce_slot_limits()` trunca o que ainda exceder. Warnings são logados.
+### Pipeline de 4 camadas
+1. **Role-aware prompt** – O `outline_service` usa `derive_slot_capabilities()` e `build_role_schema()` para gerar prompts com campos explícitos por role (REQUIRED, OPTIONAL, FORBIDDEN).
+2. **Sanitização por role** – `strip_forbidden_slots()` remove campos proibidos mesmo se a IA os gerar (ex: `body` no cover, `bullets` no CTA).
+3. **Auto-rewrite (compress)** – Se um slot excede >15% do limite, o `openai_service.compress_slot()` reescreve automaticamente o texto para caber.
+4. **Truncation (fallback)** – `enforce_slot_limits()` trunca o que ainda exceder. Warnings são logados.
+
+### Regras de composição por role
+
+| Role | Campos obrigatórios | Campos opcionais | Campos proibidos |
+|------|---------------------|------------------|-----------------|
+| **cover** | title/headline, subtitle/subhead | kicker, brand, number | body, bullets, cta_*, subcta |
+| **body** | title/headline + (bullets OU body) | brand, number, support | cta_*, subcta |
+| **cta** | cta_title + cta_button (ou headline + cta) | cta_body, subcta, brand, signature | body, bullets, subtitle, kicker |
+
+**Estratégia de conteúdo para body:**
+- Se `bullets.max_items >= 3` → usar bullets (3–5 itens curtos)
+- Senão, se `body.max_chars >= 100` → usar parágrafo curto
+- Campos escolhidos dinamicamente via `derive_slot_capabilities()`
 
 ### Composition hints
 O `build_composition_hints()` analisa o `slots.json` e orienta a IA:
@@ -99,7 +113,7 @@ O `build_composition_hints()` analisa o `slots.json` e orienta a IA:
 ### Warnings expostos
 Cada slide pode conter `warnings[]` no response:
 ```json
-["title truncated to 68 chars", "applied_scrim_soft", "image_missing_disk"]
+["title truncated to 68 chars", "stripped_body", "stripped_cta_title", "applied_scrim_soft"]
 ```
 
 ## 8. Scrim overlay (legibilidade garantida)

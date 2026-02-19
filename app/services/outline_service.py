@@ -15,8 +15,11 @@ from app.services.openai_service import OpenAIService
 from app.services.template_service import template_registry
 from app.utils.slots import (
     build_composition_hints,
+    build_role_schema,
+    derive_slot_capabilities,
     detect_overflow_slots,
     enforce_slot_limits,
+    strip_forbidden_slots,
     summarize_slot_constraints,
 )
 
@@ -79,15 +82,54 @@ class OutlineService:
 
         return template_registry.get_slots(role_path)
 
+    def _get_slot_schema_for_role(self, project: Project, format_key: str, role: str, fallback_path: str) -> dict[str, Any]:
+        """Load slot schema filtered by role, preferring family slots."""
+        selection = project.template_selection or {}
+        family = selection.get("family") if isinstance(selection, dict) else None
+
+        if family and family != "classic":
+            try:
+                return template_registry.get_family_slots_for_role(family, format_key, role)
+            except Exception:
+                logger.warning("Failed to load family role slots for '%s/%s', falling back", family, role)
+
+        return template_registry.get_slots(fallback_path)
+
     # ── Prompt builders ─────────────────────────────────────────────
 
     def _build_carousel_prompt(self, project: Project, ctx: OutlineRequestContext) -> tuple[str, str]:
-        cover_slots = self._get_slot_schema(project, "carousel/cover")
-        body_slots = self._get_slot_schema(project, "carousel/body")
-        cta_slots = self._get_slot_schema(project, "carousel/cta")
+        cover_slots = self._get_slot_schema_for_role(project, "carousel", "cover", "carousel/cover")
+        body_slots = self._get_slot_schema_for_role(project, "carousel", "body", "carousel/body")
+        cta_slots = self._get_slot_schema_for_role(project, "carousel", "cta", "carousel/cta")
 
-        cover_hints = build_composition_hints(cover_slots)
+        cover_caps = derive_slot_capabilities(cover_slots)
+        body_caps = derive_slot_capabilities(body_slots)
+        cta_caps = derive_slot_capabilities(cta_slots)
+
+        cover_schema = build_role_schema("cover", cover_caps, cover_slots)
+        body_schema = build_role_schema("body", body_caps, body_slots)
+        cta_schema = build_role_schema("cta", cta_caps, cta_slots)
+
         body_hints = build_composition_hints(body_slots)
+
+        # Build dynamic JSON example based on actual slot keys
+        tk = cover_caps["title_key"]
+        sk = cover_caps["subtitle_key"]
+        btk = body_caps["title_key"]
+
+        # CTA key detection
+        cta_title_key = "cta_title" if cta_caps["supports_cta_title"] else cta_caps["title_key"]
+        cta_button_key = "cta_button" if cta_caps["supports_cta_button"] else "cta"
+
+        cover_example = f'{{"n":1,"role":"cover","{tk}":"...","{ sk}":"..."}}'
+        body_example = f'{{"n":2,"role":"body","{btk}":"..."'
+        if body_caps["bullets_strategy"]:
+            body_example += ',"bullets":["...","...","..."]'
+        elif body_caps["body_strategy"]:
+            body_example += ',"body":"..."'
+        body_example += "}"
+
+        cta_example = f'{{"n":8,"role":"cta","{cta_title_key}":"...","{cta_button_key}":"..."}}'
 
         system_prompt = (
             "Você é um roteirista especializado em carrosséis do Instagram. "
@@ -96,47 +138,52 @@ class OutlineService:
             "1. NUNCA exceda os limites de caracteres indicados para cada slot.\n"
             "2. Conte os caracteres ANTES de finalizar. Se estiver perto do limite, reescreva mais curto.\n"
             "3. Prefira frases de impacto a parágrafos longos.\n"
-            "4. Retorne APENAS JSON válido, sem markdown, sem texto adicional."
+            "4. Retorne APENAS JSON válido, sem markdown, sem texto adicional.\n"
+            "5. Cada role tem campos PROIBIDOS — NÃO os inclua no JSON."
         )
 
         user_prompt = f"""
 Gere um roteiro completo para um carrossel de 8 páginas (n=1..8) sobre o tema "{ctx.topic}".
-Papel de cada slide:
-1 = cover, 2-7 = body, 8 = cta.
+Papel de cada slide: 1 = cover, 2-7 = body, 8 = cta.
 
-⚠️ LIMITES ESTRITOS — respeite CADA limite abaixo. Textos que excederem serão cortados automaticamente.
+⚠️ REGRAS POR ROLE — respeite os campos permitidos e NUNCA inclua campos proibidos:
 
-COVER (slots e limites):
-{summarize_slot_constraints(cover_slots)}
-{f"Dicas de composição: {cover_hints}" if cover_hints else ""}
+{cover_schema}
 
-BODY (slots e limites):
-{summarize_slot_constraints(body_slots)}
+{body_schema}
 {f"Dicas de composição: {body_hints}" if body_hints else ""}
 
-CTA (slots e limites):
-{summarize_slot_constraints(cta_slots)}
+{cta_schema}
 
 Tom desejado: {ctx.tone or "informativo e claro"}.
 Chamada final deve direcionar para: {ctx.cta_action or "DM"}.
 
-Saída obrigatória: JSON válido seguindo exatamente o contrato abaixo:
+Saída obrigatória: JSON válido seguindo exatamente este formato:
 {{
   "format": "carousel",
   "slides": [
-    {{"n":1,"role":"cover","headline":"...","subhead":"...","kicker":"...","body":null,"bullets":[],"cta":null,"image_brief":"..."}},
+    {cover_example},
+    {body_example},
     ...,
-    {{"n":8,"role":"cta","headline":"...","cta":"...","subcta":"...","image_brief":"..."}}
+    {cta_example}
   ]
 }}
 """
         return system_prompt, user_prompt
 
     def _build_stories_prompt(self, project: Project, ctx: OutlineRequestContext) -> tuple[str, str]:
-        frame_slots = self._get_slot_schema(project, "stories/frame")
-        cta_slots = self._get_slot_schema(project, "stories/cta")
+        frame_slots = self._get_slot_schema_for_role(project, "stories", "frame", "stories/frame")
+        cta_slots = self._get_slot_schema_for_role(project, "stories", "frame", "stories/cta")
+
+        frame_caps = derive_slot_capabilities(frame_slots)
+        cta_caps = derive_slot_capabilities(cta_slots)
+
+        frame_schema = build_role_schema("frame", frame_caps, frame_slots)
+        cta_frame_schema = build_role_schema("frame_cta", cta_caps, cta_slots)
 
         frame_hints = build_composition_hints(frame_slots)
+
+        tk = frame_caps["title_key"]
 
         system_prompt = (
             "Você escreve roteiros para sequências de stories (1080x1920). "
@@ -151,14 +198,12 @@ Saída obrigatória: JSON válido seguindo exatamente o contrato abaixo:
 Gere um roteiro para 10 stories (n=1..10) sobre "{ctx.topic}".
 Quadros 1-9 = role "frame". Quadro 10 = role "frame_cta" com CTA final.
 
-⚠️ LIMITES ESTRITOS:
+⚠️ REGRAS POR ROLE:
 
-FRAME (slots e limites):
-{summarize_slot_constraints(frame_slots)}
+{frame_schema}
 {f"Dicas: {frame_hints}" if frame_hints else ""}
 
-CTA FRAME (slots e limites):
-{summarize_slot_constraints(cta_slots)}
+{cta_frame_schema}
 
 Tom: {ctx.tone or "envolvente e direto"}.
 CTA final deve instruir: {ctx.cta_action or "DM"} com palavra-chave {ctx.cta_trigger_word or "CASA"}.
@@ -167,16 +212,16 @@ Saída obrigatória (JSON puro):
 {{
   "format": "stories_10x",
   "frames": [
-    {{"n":1,"role":"frame","kicker":"...","headline":"...","support":"...","image_brief":"...","progress":"1/10"}},
+    {{"n":1,"role":"frame","{tk}":"...","support":"...","progress":"1/10"}},
     ...,
-    {{"n":10,"role":"frame_cta","headline":"...","cta":"...","trigger_word":"CASA","support":"...","image_brief":"...","progress":"10/10"}}
+    {{"n":10,"role":"frame_cta","{tk}":"...","cta":"...","trigger_word":"{ctx.cta_trigger_word or 'CASA'}","progress":"10/10"}}
   ],
-  "cta": {{"action":"DM","trigger_word":"CASA"}}
+  "cta": {{"action":"{ctx.cta_action or 'DM'}","trigger_word":"{ctx.cta_trigger_word or 'CASA'}"}}
 }}
 """
         return system_prompt, user_prompt
 
-    # ── Response parsing with 2-pass compress ───────────────────────
+    # ── Response parsing with role sanitization + 2-pass compress ───
 
     def _parse_response(self, project: Project, payload: dict[str, Any]) -> list[Slide]:
         try:
@@ -192,11 +237,15 @@ Saída obrigatória (JSON puro):
             role = SlideRole(entry["role"])
             slot_schema = self._slot_schema_for_role(project, role)
 
+            # Pass 0: strip forbidden slots for this role
+            stripped = strip_forbidden_slots(entry, role.value)
+            if stripped:
+                logger.info("Stripped forbidden slots from %s: %s", role.value, stripped)
+
             # Pass 1: detect overflows that need auto-rewrite
             overflows = detect_overflow_slots(entry, slot_schema)
             if overflows and self.openai is not None:
                 for slot_key, info in overflows.items():
-                    # Handle list item keys like "bullets[2]"
                     if "[" in slot_key:
                         base_key, idx_str = slot_key.rstrip("]").split("[")
                         idx = int(idx_str)
@@ -222,6 +271,8 @@ Saída obrigatória (JSON puro):
 
             # Pass 2: hard enforce (truncate anything still over)
             sanitized_payload, warnings = enforce_slot_limits(entry, slot_schema)
+            if stripped:
+                warnings.extend([f"stripped_{k}" for k in stripped])
             for warning in warnings:
                 logger.info("Slide %s warning: %s", role.value, warning)
 
@@ -250,61 +301,94 @@ Saída obrigatória (JSON puro):
             raise AppError("invalid_payload", "Unsupported slide role", status.HTTP_400_BAD_REQUEST)
         return self._get_slot_schema(project, path)
 
-    # ── Fallback (stub) ─────────────────────────────────────────────
+    # ── Fallback (stub) — role-aware ────────────────────────────────
 
     def _fallback_payload(self, project: Project, ctx: OutlineRequestContext) -> dict[str, Any]:
         topic = ctx.topic or "Projeto"
+
         if project.type == ProjectType.CAROUSEL:
-            slides = []
-            slides.append({
-                "n": 1,
-                "role": "cover",
-                "headline": f"{topic}: visão geral",
-                "subhead": "Resumo rápido",
-                "kicker": "Introdução",
-                "body": None,
-                "bullets": [],
-                "cta": None,
-                "subcta": None,
-                "image_brief": "Capa tipográfica",
-            })
+            # Detect capabilities for each role
+            cover_slots = self._get_slot_schema_for_role(project, "carousel", "cover", "carousel/cover")
+            body_slots = self._get_slot_schema_for_role(project, "carousel", "body", "carousel/body")
+            cta_slots = self._get_slot_schema_for_role(project, "carousel", "cta", "carousel/cta")
+
+            cover_caps = derive_slot_capabilities(cover_slots)
+            body_caps = derive_slot_capabilities(body_slots)
+            cta_caps = derive_slot_capabilities(cta_slots)
+
+            tk = cover_caps["title_key"]
+            sk = cover_caps["subtitle_key"]
+            btk = body_caps["title_key"]
+
+            slides: list[dict[str, Any]] = []
+
+            # Cover: only title + subtitle + brand + number
+            cover: dict[str, Any] = {"n": 1, "role": "cover"}
+            cover[tk] = f"{topic}: visão geral"
+            if cover_caps["supports_subtitle"]:
+                cover[sk] = "Resumo rápido"
+            if cover_caps["supports_kicker"]:
+                cover["kicker"] = "Introdução"
+            if cover_caps["supports_brand"]:
+                cover["brand"] = ""
+            if cover_caps["supports_number"]:
+                cover["number"] = "01/08"
+            cover["image_brief"] = "Capa tipográfica"
+            slides.append(cover)
+
+            # Body slides: adapt bullets vs body
             for n in range(2, 8):
-                slides.append({
-                    "n": n,
-                    "role": "body",
-                    "headline": f"Ponto {n-1}",
-                    "support": f"Contexto do ponto {n-1}",
-                    "body": f"Detalhes do ponto {n-1} sobre {topic}",
-                    "bullets": [f"Insight {i}" for i in range(1, 4)],
-                    "cta": None,
-                    "subcta": None,
-                    "image_brief": "Imagem ilustrativa",
-                })
-            slides.append({
-                "n": 8,
-                "role": "cta",
-                "headline": "Continue a conversa",
-                "cta": ctx.cta_action or "DM",
-                "subcta": "Fale com a equipe",
-                "image_brief": "CTA minimalista",
-            })
+                body: dict[str, Any] = {"n": n, "role": "body"}
+                body[btk] = f"Ponto {n - 1}"
+                if body_caps["bullets_strategy"]:
+                    body["bullets"] = [f"Insight {i} sobre {topic}" for i in range(1, 4)]
+                elif body_caps["body_strategy"] or body_caps["supports_body"]:
+                    body["body"] = f"Detalhes do ponto {n - 1} sobre {topic}."
+                if body_caps["supports_number"]:
+                    body["number"] = f"{n:02d}/08"
+                body["image_brief"] = "Imagem ilustrativa"
+                slides.append(body)
+
+            # CTA: only cta fields + brand
+            cta: dict[str, Any] = {"n": 8, "role": "cta"}
+            if cta_caps["supports_cta_title"]:
+                cta["cta_title"] = "Continue a conversa"
+            elif cta_caps["supports_title"]:
+                cta[cta_caps["title_key"]] = "Continue a conversa"
+            if cta_caps["supports_cta_button"]:
+                cta["cta_button"] = ctx.cta_action or "DM"
+            elif "cta" in cta_slots.get("slots", {}):
+                cta["cta"] = ctx.cta_action or "DM"
+            if cta_caps["supports_cta_body"]:
+                cta["cta_body"] = "Fale com a equipe"
+            if cta_caps["supports_brand"]:
+                cta["brand"] = ""
+            if cta_caps["supports_number"]:
+                cta["number"] = "08/08"
+            cta["image_brief"] = "CTA minimalista"
+            slides.append(cta)
+
             return {"format": "carousel", "slides": slides}
 
-        frames = []
+        # Stories fallback
+        frames: list[dict[str, Any]] = []
+        frame_slots = self._get_slot_schema_for_role(project, "stories", "frame", "stories/frame")
+        frame_caps = derive_slot_capabilities(frame_slots)
+        tk = frame_caps["title_key"]
+
         for n in range(1, 10):
             frames.append({
                 "n": n,
                 "role": "frame",
-                "kicker": f"{topic} #{n}",
-                "headline": f"Take {n}",
-                "support": f"Detalhe {n} sobre {topic}",
+                tk: f"Take {n}" if n > 1 else f"{topic}",
+                "support": f"Detalhe {n}" if n > 1 else "Hook inicial",
                 "image_brief": "Visual minimalista",
                 "progress": f"{n}/10",
             })
         frames.append({
             "n": 10,
             "role": "frame_cta",
-            "headline": "Chame no direct",
+            tk: "Chame no direct",
             "cta": ctx.cta_action or "DM",
             "trigger_word": ctx.cta_trigger_word or "CASA",
             "support": "Use a palavra-chave",
