@@ -107,18 +107,36 @@ class RenderService:
         if not role_key:
             raise AppError("template_not_found", f"Unsupported role {slide.role}", status.HTTP_400_BAD_REQUEST)
 
-        family = FAMILY_MAP[project.type]
+        format_key = FAMILY_MAP[project.type]  # "carousel" or "stories"
+        family_name = selection.get("family") if isinstance(selection, dict) else None
+
+        # Determine variant id from selection
         selected_id = None
         if isinstance(selection, dict):
-            family_block = selection.get(family)
-            if isinstance(family_block, dict):
-                selected_id = family_block.get(role_key)
+            format_block = selection.get(format_key)
+            if isinstance(format_block, dict):
+                selected_id = format_block.get(role_key)
             else:
                 selected_id = selection.get(role_key)
-        if not selected_id:
-            family_variants = template_registry.registry[family][role_key]
-            selected_id = family_variants[0]["id"]
-        return template_registry.get_variant(family, role_key, selected_id)
+
+        if family_name and family_name != "classic":
+            # Family-based lookup
+            if not selected_id:
+                # Default to first variant in the family
+                try:
+                    family_variants = template_registry.registry[family_name][format_key][role_key]
+                    selected_id = family_variants[0]["id"]
+                except KeyError:
+                    raise AppError("template_not_found", f"Family {family_name} has no {format_key}/{role_key}", status.HTTP_404_NOT_FOUND)
+            return template_registry.get_variant(family_name, role_key, selected_id, format_key=format_key)
+        else:
+            # Legacy flat lookup
+            if not selected_id:
+                family_variants = template_registry.registry[format_key][role_key]
+                selected_id = family_variants[0]["id"]
+            return template_registry.get_variant(format_key, role_key, selected_id)
+
+    # ... keep existing code (_build_html, _asset_uri, _target_paths, _render_log_path)
 
     def _build_html(self, slide: Slide, template_file: str) -> tuple[str, list[str]]:
         template_path = Path(template_file)

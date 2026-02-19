@@ -49,6 +49,19 @@ export interface Project {
   slides?: UiSlide[];
 }
 
+export interface TemplateSelection {
+  family: string;
+  carousel?: {
+    cover?: string;
+    body?: string;
+    cta?: string;
+  };
+  stories?: {
+    frame?: string;
+    cta?: string;
+  };
+}
+
 export interface AppSettings {
   author_name: string;
   handle: string;

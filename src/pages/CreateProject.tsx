@@ -1,13 +1,18 @@
 import { useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 import { createProject } from "@/services/api";
-import type { ProjectType, ToneType } from "@/types/project";
+import type { ProjectType, ToneType, TemplateSelection } from "@/types/project";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Sparkles } from "lucide-react";
 import { Link } from "react-router-dom";
+
+const TEMPLATE_FAMILIES = [
+  { value: "classic", label: "Clássico" },
+  { value: "premium_editorial_v1", label: "Premium Editorial V1" },
+];
 
 export default function CreateProject() {
   const { type } = useParams<{ type: string }>();
@@ -19,15 +24,23 @@ export default function CreateProject() {
   const [slideCount, setSlideCount] = useState(8);
   const [tone, setTone] = useState<ToneType>("medium");
   const [ctaObjective, setCtaObjective] = useState("");
+  const [templateFamily, setTemplateFamily] = useState("premium_editorial_v1");
   const [loading, setLoading] = useState(false);
 
   async function handleCreate() {
     if (!title.trim()) return;
     setLoading(true);
+
+    const templateSelection: TemplateSelection | undefined =
+      templateFamily !== "classic"
+        ? { family: templateFamily }
+        : undefined;
+
     const project = await createProject({
       type: format,
       title: title.trim(),
       slides_count: isCarousel ? slideCount : 10,
+      template_selection: templateSelection,
     });
     navigate(`/project/${project.id}`);
   }
@@ -53,6 +66,22 @@ export default function CreateProject() {
             value={title}
             onChange={(e) => setTitle(e.target.value)}
           />
+        </div>
+
+        <div>
+          <Label>Família de templates</Label>
+          <Select value={templateFamily} onValueChange={setTemplateFamily}>
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              {TEMPLATE_FAMILIES.map((f) => (
+                <SelectItem key={f.value} value={f.value}>
+                  {f.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
         </div>
 
         {isCarousel && (

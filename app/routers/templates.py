@@ -10,3 +10,8 @@ router = APIRouter(prefix="/api/templates", tags=["templates"])
 @router.get("", response_model=dict)
 def list_templates() -> dict:
     return template_registry.list_templates()
+
+
+@router.get("/families", response_model=dict)
+def list_families() -> dict:
+    return template_registry.list_families()
