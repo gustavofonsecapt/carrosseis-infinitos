@@ -8,19 +8,16 @@
 </head>
 <body>
 <div class="slide cta-v2">
-  <img data-slot="image" class="cta-v2-image" src="../../assets/images/placeholder.jpg" alt="">
-  <div class="content">
-    <div style="display:flex;justify-content:space-between;align-items:center">
-      <span data-slot="brand" class="brand">petriafonseca.com</span>
-      <span data-slot="category" class="category">Categoria</span>
+  <img data-slot="image" class="img-cover" src="../../assets/images/placeholder.jpg" alt="">
+  <div class="overlay overlay--dark"></div>
+  <div class="content content--end">
+    <div class="cta-v2__text-zone">
+      <span data-slot="brand" class="brand-pill">petriafonseca.com</span>
+      <div class="gap-sm"></div>
+      <h2 data-slot="cta_title" class="title">Texto geral de <strong>conclusão + CTA</strong></h2>
+      <div class="gap-sm"></div>
+      <span data-slot="cta_button" class="cta-button cta-button--wide">CTA</span>
     </div>
-    <div class="cta-content">
-      <span data-slot="kicker" class="kicker">Último passo</span>
-      <h2 data-slot="cta_title" class="title">Quer o material completo?</h2>
-      <p data-slot="cta_body" class="body-text" style="color:var(--muted)">Comente "QUERO" que te envio o guia em PDF com todos os passos detalhados e templates prontos para usar.</p>
-      <span data-slot="cta_button" class="cta-button">Comentar QUERO</span>
-    </div>
-    <span data-slot="footer_note" class="footer-note" style="text-align:center;display:block">Link na bio para mais recursos</span>
   </div>
 </div>
 </body>
