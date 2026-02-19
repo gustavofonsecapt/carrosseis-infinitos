@@ -130,6 +130,35 @@ class TemplateRegistry:
         with slots_path.open("r", encoding="utf-8") as f:
             return json.load(f)
 
+    def get_family_slots_for_role(self, family: str, format_key: str, role: str) -> dict[str, Any]:
+        """Load slots.json filtered to only the slots relevant for a specific role.
+
+        Uses `primary_slots` from the variation definition + global slots (brand, number, image, footer_note).
+        """
+        full = self.get_family_slots(family)
+        all_slots = full.get("slots", {})
+
+        # Find the variation list for this format/role
+        variations = full.get("variations", {}).get(format_key, {}).get(role, [])
+        if not variations:
+            # Fallback: return all slots
+            return full
+
+        # Gather primary_slots from the first variation (they share the same structure)
+        primary = set()
+        for v in variations:
+            for s in v.get("primary_slots", []):
+                primary.add(s)
+
+        # Global slots always included
+        global_slots = {"brand", "number", "image", "footer_note", "page_counter"}
+        allowed = primary | global_slots
+
+        filtered_slots = {k: v for k, v in all_slots.items() if k in allowed}
+        result = dict(full)
+        result["slots"] = filtered_slots
+        return result
+
 
 template_registry = TemplateRegistry(
     registry_path=settings.templates_dir / "registry.json",

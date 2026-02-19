@@ -146,3 +146,146 @@ def build_composition_hints(slot_schema: dict[str, Any]) -> str:
             hints.append(f"Headline must be very short (max {max_c} chars). Prioritize impact.")
 
     return "\n".join(hints) if hints else ""
+
+
+# ── Role-aware slot capabilities ────────────────────────────────────
+
+# Slots that are considered "global" and available to all roles
+_GLOBAL_SLOTS = {"brand", "number", "image", "footer_note", "page_counter"}
+
+# Slots forbidden per role (safety net)
+FORBIDDEN_SLOTS: dict[str, set[str]] = {
+    "cover": {"body", "bullets", "cta_title", "cta_button", "cta_body", "cta", "subcta"},
+    "body": {"cta_title", "cta_button", "cta_body", "cta", "subcta"},
+    "cta": {"body", "bullets", "subtitle", "subhead", "kicker"},
+    "frame": set(),
+    "frame_cta": set(),
+}
+
+
+def derive_slot_capabilities(slot_schema: dict[str, Any]) -> dict[str, Any]:
+    """Analyze a slot_schema and return feature flags for content strategy."""
+    slots = slot_schema.get("slots", {})
+    bullets_meta = slots.get("bullets", {})
+    body_meta = slots.get("body", {})
+    return {
+        "supports_title": "title" in slots or "headline" in slots,
+        "supports_subtitle": "subtitle" in slots or "subhead" in slots,
+        "supports_kicker": "kicker" in slots,
+        "supports_body": "body" in slots,
+        "supports_bullets": "bullets" in slots,
+        "supports_cta_title": "cta_title" in slots,
+        "supports_cta_body": "cta_body" in slots,
+        "supports_cta_button": "cta_button" in slots,
+        "supports_brand": "brand" in slots,
+        "supports_number": "number" in slots,
+        "supports_image": "image" in slots,
+        "title_key": "title" if "title" in slots else "headline",
+        "subtitle_key": "subtitle" if "subtitle" in slots else "subhead",
+        "bullets_strategy": bool(bullets_meta.get("max_items", 0) >= 3),
+        "body_strategy": bool(body_meta.get("max_chars", 0) >= 100),
+    }
+
+
+def build_role_schema(role: str, caps: dict[str, Any], slot_schema: dict[str, Any]) -> str:
+    """Generate a human-readable description of allowed fields per role.
+
+    Used to inject into the OpenAI prompt so the model knows exactly
+    which fields are required, optional, and forbidden for each role.
+    """
+    slots = slot_schema.get("slots", {})
+    title_key = caps["title_key"]
+    subtitle_key = caps["subtitle_key"]
+    forbidden = FORBIDDEN_SLOTS.get(role, set())
+
+    lines: list[str] = []
+    required: list[str] = []
+    optional: list[str] = []
+
+    def _slot_desc(key: str) -> str:
+        meta = slots.get(key, {})
+        parts = [key]
+        if mc := meta.get("max_chars"):
+            parts.append(f"max {mc} chars")
+        if mi := meta.get("max_items"):
+            parts.append(f"max {mi} items")
+        if mci := meta.get("max_chars_per_item"):
+            parts.append(f"max {mci} chars/item")
+        return f"{parts[0]} ({', '.join(parts[1:])})" if len(parts) > 1 else parts[0]
+
+    if role == "cover":
+        if caps["supports_title"]:
+            required.append(_slot_desc(title_key))
+        if caps["supports_subtitle"]:
+            optional.append(_slot_desc(subtitle_key))
+        if caps["supports_kicker"]:
+            optional.append(_slot_desc("kicker"))
+        if caps["supports_brand"]:
+            optional.append(_slot_desc("brand"))
+        if caps["supports_number"]:
+            optional.append(_slot_desc("number"))
+
+    elif role == "body":
+        if caps["supports_title"]:
+            required.append(_slot_desc(title_key))
+        if caps["bullets_strategy"]:
+            required.append(_slot_desc("bullets") + " — USE BULLETS, not paragraph")
+        elif caps["body_strategy"]:
+            required.append(_slot_desc("body") + " — short paragraph")
+        elif caps["supports_body"]:
+            optional.append(_slot_desc("body"))
+        if caps["supports_bullets"] and not caps["bullets_strategy"]:
+            optional.append(_slot_desc("bullets"))
+        if caps["supports_brand"]:
+            optional.append(_slot_desc("brand"))
+        if caps["supports_number"]:
+            optional.append(_slot_desc("number"))
+
+    elif role == "cta":
+        if caps["supports_cta_title"]:
+            required.append(_slot_desc("cta_title"))
+        elif caps["supports_title"]:
+            required.append(_slot_desc(title_key))
+        if caps["supports_cta_button"]:
+            required.append(_slot_desc("cta_button"))
+        elif "cta" in slots:
+            required.append(_slot_desc("cta"))
+        if caps["supports_cta_body"]:
+            optional.append(_slot_desc("cta_body"))
+        if "subcta" in slots:
+            optional.append(_slot_desc("subcta"))
+        if "signature" in slots:
+            optional.append(_slot_desc("signature"))
+        if caps["supports_brand"]:
+            optional.append(_slot_desc("brand"))
+
+    else:
+        # frame / frame_cta — include all non-forbidden slots
+        for key, meta in slots.items():
+            if key in forbidden:
+                continue
+            if meta.get("required"):
+                required.append(_slot_desc(key))
+            else:
+                optional.append(_slot_desc(key))
+
+    lines.append(f"{role.upper()}:")
+    if required:
+        lines.append(f"  REQUIRED: {', '.join(required)}")
+    if optional:
+        lines.append(f"  OPTIONAL: {', '.join(optional)}")
+    forbidden_names = sorted(forbidden & set(slots.keys()))
+    if forbidden_names:
+        lines.append(f"  FORBIDDEN: {', '.join(forbidden_names)}")
+    return "\n".join(lines)
+
+
+def strip_forbidden_slots(entry: dict[str, Any], role: str) -> list[str]:
+    """Remove slots that are not allowed for a given role. Returns list of stripped keys."""
+    forbidden = FORBIDDEN_SLOTS.get(role, set())
+    stripped: list[str] = []
+    for key in list(entry.keys()):
+        if key in forbidden:
+            entry.pop(key)
+            stripped.append(key)
+    return stripped
