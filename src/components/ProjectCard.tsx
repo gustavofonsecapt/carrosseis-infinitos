@@ -6,20 +6,20 @@ import { Layers, Instagram, Clock } from "lucide-react";
 
 const statusLabels: Record<string, string> = {
   draft: "Rascunho",
-  outline_ready: "Roteiro pronto",
+  outlined: "Roteiro pronto",
+  rendering: "Renderizando",
   rendered: "Renderizado",
-  exported: "Exportado",
 };
 
 const statusColors: Record<string, string> = {
   draft: "bg-muted text-muted-foreground",
-  outline_ready: "bg-primary/10 text-primary",
-  rendered: "bg-success/10 text-success",
-  exported: "bg-accent/10 text-accent",
+  outlined: "bg-primary/10 text-primary",
+  rendering: "bg-amber-100 text-amber-700",
+  rendered: "bg-emerald-100 text-emerald-700",
 };
 
 export default function ProjectCard({ project }: { project: Project }) {
-  const isCarousel = project.format === "carousel";
+  const isCarousel = project.type === "carousel";
 
   return (
     <Link to={`/project/${project.id}`}>
@@ -39,7 +39,7 @@ export default function ProjectCard({ project }: { project: Project }) {
                   {project.title}
                 </p>
                 <p className="text-xs text-muted-foreground">
-                  {isCarousel ? `Carrossel · ${project.slide_count || 8} slides` : "Stories 10x · 10 frames"}
+                  {isCarousel ? `Carrossel · ${project.slides_count || 8} slides` : "Stories 10x · 10 frames"}
                 </p>
               </div>
             </div>

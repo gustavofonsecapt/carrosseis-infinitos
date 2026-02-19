@@ -25,11 +25,9 @@ export default function CreateProject() {
     if (!title.trim()) return;
     setLoading(true);
     const project = await createProject({
-      format,
+      type: format,
       title: title.trim(),
-      slide_count: isCarousel ? slideCount : 10,
-      tone,
-      cta_objective: ctaObjective,
+      slides_count: isCarousel ? slideCount : 10,
     });
     navigate(`/project/${project.id}`);
   }

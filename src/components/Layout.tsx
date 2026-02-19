@@ -50,8 +50,8 @@ export default function Layout({ children }: { children: ReactNode }) {
             );
           })}
         </nav>
-        <div className="p-4 border-t border-sidebar-border text-xs text-sidebar-foreground/40">
-          Mock Mode — Conecte ao FastAPI
+        <div className="p-4 border-t border-sidebar-border text-xs text-sidebar-foreground/50">
+          API: {import.meta.env.VITE_API_URL || "http://127.0.0.1:8100"}
         </div>
       </aside>
 

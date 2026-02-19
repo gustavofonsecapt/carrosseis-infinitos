@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "react-router-dom";
 import {
-  fetchProjects,
+  fetchProjectWithSlides,
   generateOutline,
   renderSlides,
   updateSlide,
@@ -9,7 +9,7 @@ import {
   exportProject,
 } from "@/services/api";
 import { fetchSettings } from "@/services/api";
-import type { Project, CarouselOutline, StoriesOutline, CarouselSlide, StoryFrame, AppSettings } from "@/types/project";
+import type { Project, UiSlide, AppSettings } from "@/types/project";
 import SlidePreview from "@/components/SlidePreview";
 import SlideEditor from "@/components/SlideEditor";
 import { Button } from "@/components/ui/button";
@@ -24,9 +24,8 @@ export default function ProjectEditor() {
   const [loading, setLoading] = useState("");
 
   useEffect(() => {
-    Promise.all([fetchProjects(), fetchSettings()]).then(([projects, s]) => {
-      const found = projects.find((p) => p.id === id);
-      if (found) setProject(found);
+    Promise.all([fetchProjectWithSlides(id!), fetchSettings()]).then(([p, s]) => {
+      setProject(p);
       setSettings(s);
     });
   }, [id]);
@@ -37,22 +36,22 @@ export default function ProjectEditor() {
     );
   }
 
-  const isCarousel = project.format === "carousel";
-  const slides: (CarouselSlide | StoryFrame)[] = isCarousel
-    ? (project.outline as CarouselOutline)?.slides || []
-    : (project.outline as StoriesOutline)?.frames || [];
+  const isCarousel = project.type === "carousel";
+  const slides = project.slides || [];
 
   async function handleGenerateOutline() {
     setLoading("outline");
-    const updated = await generateOutline(project!.id);
-    setProject(updated);
+    await generateOutline(project!.id, { topic: project!.title });
+    const refreshed = await fetchProjectWithSlides(project!.id);
+    setProject(refreshed);
     setLoading("");
   }
 
   async function handleRender() {
     setLoading("render");
-    const updated = await renderSlides(project!.id);
-    setProject(updated);
+    await renderSlides(project!.id);
+    const refreshed = await fetchProjectWithSlides(project!.id);
+    setProject(refreshed);
     setLoading("");
   }
 
@@ -63,24 +62,25 @@ export default function ProjectEditor() {
   }
 
   async function handleSaveSlide(slideN: number, data: Partial<CarouselSlide> | Partial<StoryFrame>) {
-    const updated = await updateSlide(project!.id, slideN, data);
-    setProject(updated);
+    const updatedSlide = await updateSlide(project!.id, slideN, data);
+    setProject((prev) => prev ? { ...prev, slides: prev.slides?.map((s) => (s.n === slideN ? updatedSlide : s)) } : prev);
     setEditingSlide(null);
+    setProject(updated);
+    
   }
 
   async function handleUploadImage(slideN: number, file: File) {
-    await uploadSlideImage(project!.id, slideN, file);
+    const updatedSlide = await uploadSlideImage(project!.id, slideN, file);
+    setProject((prev) => prev ? { ...prev, slides: prev.slides?.map((s) => (s.n === slideN ? updatedSlide : s)) } : prev);
     // Refresh project
-    const projects = await fetchProjects();
-    const updated = projects.find((p) => p.id === project!.id);
-    if (updated) setProject(updated);
+    
   }
 
   const statusLabels: Record<string, string> = {
     draft: "Rascunho",
-    outline_ready: "Roteiro pronto",
+    outlined: "Roteiro pronto",
+    rendering: "Renderizando",
     rendered: "Renderizado",
-    exported: "Exportado",
   };
 
   return (
@@ -106,7 +106,7 @@ export default function ProjectEditor() {
               Gerar roteiro
             </Button>
           )}
-          {(project.status === "outline_ready" || project.status === "rendered") && (
+          {(project.status === "outlined" || project.status === "rendered") && (
             <>
               <Button onClick={handleGenerateOutline} variant="outline" disabled={!!loading} className="gap-2">
                 {loading === "outline" ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
@@ -145,7 +145,7 @@ export default function ProjectEditor() {
               className="cursor-pointer hover:ring-2 hover:ring-primary/40 rounded-lg transition-all"
               onClick={() => setEditingSlide(s.n)}
             >
-              <SlidePreview format={project.format} data={s} settings={settings} />
+              <SlidePreview format={project.type} data={s} settings={settings} />
             </div>
           ))}
         </div>
@@ -154,7 +154,7 @@ export default function ProjectEditor() {
       {/* Slide editor */}
       {editingSlide !== null && (
         <SlideEditor
-          format={project.format}
+          format={project.type}
           data={slides.find((s) => s.n === editingSlide)!}
           onSave={(data) => handleSaveSlide(editingSlide, data)}
           onUploadImage={(file) => handleUploadImage(editingSlide, file)}
