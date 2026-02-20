@@ -142,9 +142,13 @@ class OutlineService:
             "5. Cada role tem campos PROIBIDOS — NÃO os inclua no JSON."
         )
 
+        total = project.slides_count or 8
+        last = total
+        body_end = total - 1
+
         user_prompt = f"""
-Gere um roteiro completo para um carrossel de 8 páginas (n=1..8) sobre o tema "{ctx.topic}".
-Papel de cada slide: 1 = cover, 2-7 = body, 8 = cta.
+Gere um roteiro completo para um carrossel de {total} páginas (n=1..{last}) sobre o tema "{ctx.topic}".
+Papel de cada slide: 1 = cover, 2-{body_end} = body, {last} = cta.
 
 ⚠️ REGRAS POR ROLE — respeite os campos permitidos e NUNCA inclua campos proibidos:
 
@@ -322,6 +326,8 @@ Saída obrigatória (JSON puro):
 
             slides: list[dict[str, Any]] = []
 
+            total = project.slides_count or 8
+
             # Cover: only title + subtitle + brand + number
             cover: dict[str, Any] = {"n": 1, "role": "cover"}
             cover[tk] = f"{topic}: visão geral"
@@ -332,12 +338,14 @@ Saída obrigatória (JSON puro):
             if cover_caps["supports_brand"]:
                 cover["brand"] = ""
             if cover_caps["supports_number"]:
-                cover["number"] = "01/08"
+                cover["number"] = f"01/{total:02d}"
             cover["image_brief"] = "Capa tipográfica"
             slides.append(cover)
 
             # Body slides: adapt bullets vs body
-            for n in range(2, 8):
+            total = project.slides_count or 8
+            last = total
+            for n in range(2, last):
                 body: dict[str, Any] = {"n": n, "role": "body"}
                 body[btk] = f"Ponto {n - 1}"
                 if body_caps["bullets_strategy"]:
@@ -345,12 +353,12 @@ Saída obrigatória (JSON puro):
                 elif body_caps["body_strategy"] or body_caps["supports_body"]:
                     body["body"] = f"Detalhes do ponto {n - 1} sobre {topic}."
                 if body_caps["supports_number"]:
-                    body["number"] = f"{n:02d}/08"
+                    body["number"] = f"{n:02d}/{total:02d}"
                 body["image_brief"] = "Imagem ilustrativa"
                 slides.append(body)
 
             # CTA: only cta fields + brand
-            cta: dict[str, Any] = {"n": 8, "role": "cta"}
+            cta: dict[str, Any] = {"n": last, "role": "cta"}
             if cta_caps["supports_cta_title"]:
                 cta["cta_title"] = "Continue a conversa"
             elif cta_caps["supports_title"]:
@@ -364,7 +372,7 @@ Saída obrigatória (JSON puro):
             if cta_caps["supports_brand"]:
                 cta["brand"] = ""
             if cta_caps["supports_number"]:
-                cta["number"] = "08/08"
+                cta["number"] = f"{total:02d}/{total:02d}"
             cta["image_brief"] = "CTA minimalista"
             slides.append(cta)
 

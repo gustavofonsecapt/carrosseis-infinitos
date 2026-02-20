@@ -132,10 +132,22 @@ export default function ProjectEditor() {
       <div className="flex flex-wrap items-start justify-between gap-4 mb-8">
         <div>
           <h1 className="text-2xl font-bold mb-1">{project.title}</h1>
-          <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <span>{isCarousel ? "Carrossel" : "Stories 10x"}</span>
             <span>·</span>
             <Badge variant="secondary">{statusLabels[project.status]}</Badge>
+            {project.slides_count && (
+              <>
+                <span>·</span>
+                <span>{project.slides_count} slides</span>
+              </>
+            )}
+            {project.template_selection?.family && (
+              <>
+                <span>·</span>
+                <Badge variant="outline">{project.template_selection.family}</Badge>
+              </>
+            )}
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
