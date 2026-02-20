@@ -18,7 +18,8 @@ from app.schemas.project import (
 )
 from app.services.outline_service import OutlineRequestContext, OutlineService
 from app.services.project_service import ProjectService
-from app.services.render_service import RenderService
+from app.services.render_service import RenderService, ROLE_KEY_MAP, FAMILY_MAP
+from app.services.template_service import template_registry
 from app.services.export_service import ExportService
 
 router = APIRouter(prefix="/api/projects", tags=["projects"])
@@ -195,6 +196,74 @@ async def render_project_route(
             "template_selection": updated.template_selection,
         },
     )
+
+
+@router.get("/{project_id}/template-trace")
+def template_trace(
+    project_id: UUID,
+    service: ProjectService = Depends(get_service),
+):
+    """Diagnostic endpoint: shows the full template resolution chain per slide."""
+    try:
+        project = service.get_project(project_id)
+    except ValueError as exc:
+        raise AppError("project_not_found", str(exc), status.HTTP_404_NOT_FOUND, {"project_id": str(project_id)}) from exc
+
+    selection = project.template_selection or {}
+    family = selection.get("family") if isinstance(selection, dict) else None
+    format_key = FAMILY_MAP.get(project.type, "carousel")
+
+    slides_trace = []
+    for slide in sorted(project.slides, key=lambda s: s.index):
+        role_key = ROLE_KEY_MAP.get(project.type, {}).get(slide.role)
+        payload_tid = slide.payload.get("template_id") if slide.payload else None
+        payload_tv = slide.payload.get("template_variant") if slide.payload else None
+
+        # Resolve what render would actually use
+        resolved_id = payload_tv or payload_tid
+        resolved_path = None
+        if not resolved_id and family and family != "classic":
+            try:
+                variants = template_registry.registry[family][format_key][role_key]
+                resolved_id = variants[0]["id"] if variants else None
+            except KeyError:
+                resolved_id = None
+        elif not resolved_id:
+            try:
+                variants = template_registry.registry[format_key][role_key]
+                resolved_id = variants[0]["id"] if variants else None
+            except KeyError:
+                resolved_id = None
+
+        # Get file path
+        if resolved_id:
+            try:
+                if family and family != "classic":
+                    variant = template_registry.get_variant(family, role_key, resolved_id, format_key=format_key)
+                else:
+                    variant = template_registry.get_variant(format_key, role_key, resolved_id)
+                resolved_path = variant.file
+            except Exception:
+                resolved_path = "NOT_FOUND"
+
+        slides_trace.append({
+            "index": slide.index,
+            "role": slide.role.value,
+            "project_family": family,
+            "project_format": format_key,
+            "payload_template_id": payload_tid,
+            "payload_template_variant": payload_tv,
+            "resolved_template_id": resolved_id,
+            "template_path": resolved_path,
+        })
+
+    return {
+        "project_id": str(project_id),
+        "family": family,
+        "format": format_key,
+        "slides_count": project.slides_count,
+        "slides": slides_trace,
+    }
 
 
 @router.get("/{project_id}/export")
