@@ -430,20 +430,79 @@ class RenderService:
 
         raise AppError("template_not_found", f"Template '{template_id}' not found in registry", status.HTTP_404_NOT_FOUND)
 
+    # ── Rich role-aware mock payloads ──────────────────────────────────
+    _MOCK_DATA = {
+        "cover": {
+            "brand": "ContentForge",
+            "category": "MARKETING DIGITAL",
+            "kicker": "GUIA COMPLETO",
+            "title": "7 estratégias que triplicaram meu engajamento",
+            "subtitle": "O passo a passo que ninguém te conta sobre crescimento orgânico",
+            "number": "01/08",
+            "footer_note": "@contentforge",
+        },
+        "body": {
+            "brand": "ContentForge",
+            "category": "DICA #3",
+            "kicker": "ESTRATÉGIA",
+            "title": "Consistência vence perfeição",
+            "subtitle": "Por que postar 4x por semana supera 1 post perfeito",
+            "body": "A maioria dos criadores trava buscando o post perfeito. Dados mostram que contas que publicam com regularidade crescem 3x mais rápido, mesmo com qualidade mediana.",
+            "bullets": [
+                "Defina um calendário editorial realista",
+                "Use templates para agilizar a produção",
+                "Reaproveite conteúdo em formatos diferentes",
+                "Analise métricas semanalmente",
+            ],
+            "number": "03/08",
+            "footer_note": "@contentforge",
+        },
+        "cta": {
+            "brand": "ContentForge",
+            "cta_title": "Quer o checklist completo?",
+            "cta_body": "Responda 'CHECKLIST' no DM e receba o guia gratuito com as 7 estratégias detalhadas.",
+            "cta_button": "Responder no DM",
+            "number": "08/08",
+            "footer_note": "@contentforge",
+        },
+        "frame": {
+            "brand": "ContentForge",
+            "title": "Você está perdendo alcance sem saber",
+            "subtitle": "Descubra o que mudou no algoritmo",
+            "body": "O Instagram prioriza conteúdo que gera salvamentos e compartilhamentos, não apenas curtidas.",
+            "number": "03/10",
+        },
+        "frame_cta": {
+            "brand": "ContentForge",
+            "title": "Quer dominar o algoritmo?",
+            "cta": "Responda ALCANCE no DM",
+            "trigger_word": "ALCANCE",
+            "number": "10/10",
+        },
+    }
+
     def _build_mock_payload(self, slot_schema: dict[str, Any], role_key: str) -> dict[str, Any]:
-        """Generate a mock payload from slot definitions."""
+        """Generate a rich, role-aware mock payload from slot definitions."""
         slots = slot_schema.get("slots", {})
+        mock_defaults = self._MOCK_DATA.get(role_key, {})
         payload: dict[str, Any] = {}
+
         for key, spec in slots.items():
             if key == "image":
                 continue
             max_chars = spec.get("max_chars", 40)
-            desc = spec.get("description", key)
+
             if key == "bullets":
                 max_items = spec.get("max_items", 3)
-                payload["bullets"] = [f"Item exemplo {i+1}" for i in range(min(max_items, 3))]
+                max_per_item = spec.get("max_chars_per_item", 48)
+                source_bullets = mock_defaults.get("bullets", [f"Ponto importante {i+1}" for i in range(max_items)])
+                payload["bullets"] = [b[:max_per_item] for b in source_bullets[:max_items]]
+            elif key in mock_defaults:
+                payload[key] = str(mock_defaults[key])[:max_chars]
             else:
+                desc = spec.get("description", key)
                 payload[key] = desc[:max_chars]
+
         return payload
 
     def _resolve_variant(self, project: Project, slide: Slide):

@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { fetchTemplatePreview } from "@/services/api";
-import { AlertTriangle, RefreshCw, WifiOff, Eye } from "lucide-react";
+import { AlertTriangle, RefreshCw, WifiOff, Eye, Check } from "lucide-react";
 import {
   Dialog,
   DialogContent,
@@ -18,7 +18,9 @@ interface TemplateCardProps {
   format: string;
   role: string;
   family: string;
-  cacheKey: number; // increment to bust cache
+  cacheKey: number;
+  onSetDefault?: (role: string, templateId: string) => void;
+  isDefault?: boolean;
 }
 
 interface PreviewData {
@@ -26,6 +28,7 @@ interface PreviewData {
   warnings: string[];
   slot_info: Record<string, any>;
   template_path?: string;
+  cached?: boolean;
 }
 
 export default function TemplateCard({
@@ -35,6 +38,8 @@ export default function TemplateCard({
   role,
   family,
   cacheKey,
+  onSetDefault,
+  isDefault,
 }: TemplateCardProps) {
   const [preview, setPreview] = useState<PreviewData | null>(null);
   const [loading, setLoading] = useState(false);
@@ -67,7 +72,7 @@ export default function TemplateCard({
   return (
     <>
       <Card
-        className="group cursor-pointer overflow-hidden transition-shadow hover:shadow-lg border-border/50 bg-card"
+        className={`group cursor-pointer overflow-hidden transition-shadow hover:shadow-lg border-border/50 bg-card ${isDefault ? "ring-2 ring-primary" : ""}`}
         onClick={() => preview && setModalOpen(true)}
       >
         <div className={`relative ${aspectClass} bg-muted overflow-hidden`}>
@@ -92,9 +97,21 @@ export default function TemplateCard({
           )}
           {/* Hover overlay */}
           {preview && (
-            <div className="absolute inset-0 bg-black/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
-              <Eye className="w-6 h-6 text-white" />
+            <div className="absolute inset-0 bg-background/50 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+              <Eye className="w-6 h-6 text-foreground" />
             </div>
+          )}
+          {/* Default indicator */}
+          {isDefault && (
+            <div className="absolute top-2 right-2 bg-primary text-primary-foreground rounded-full p-1">
+              <Check className="w-3 h-3" />
+            </div>
+          )}
+          {/* Cache indicator */}
+          {preview?.cached && (
+            <Badge variant="secondary" className="absolute top-2 left-2 text-[9px] px-1 py-0 opacity-60">
+              cached
+            </Badge>
           )}
         </div>
         <CardContent className="p-3 space-y-1">
@@ -109,8 +126,8 @@ export default function TemplateCard({
           </div>
           {preview?.warnings && preview.warnings.length > 0 && (
             <div className="flex items-center gap-1 mt-1">
-              <AlertTriangle className="w-3 h-3 text-yellow-500" />
-              <span className="text-[10px] text-yellow-600">
+              <AlertTriangle className="w-3 h-3 text-destructive" />
+              <span className="text-[10px] text-destructive">
                 {preview.warnings.length} warning{preview.warnings.length > 1 ? "s" : ""}
               </span>
             </div>
@@ -152,16 +169,34 @@ export default function TemplateCard({
               )}
               {preview.warnings.length > 0 && (
                 <div>
-                  <p className="text-sm font-medium mb-1 text-yellow-600">Warnings</p>
+                  <p className="text-sm font-medium mb-1 text-destructive">Warnings</p>
                   <ul className="text-xs space-y-0.5">
                     {preview.warnings.map((w, i) => (
                       <li key={i} className="flex items-start gap-1">
-                        <AlertTriangle className="w-3 h-3 text-yellow-500 mt-0.5 shrink-0" />
+                        <AlertTriangle className="w-3 h-3 text-destructive mt-0.5 shrink-0" />
                         {w}
                       </li>
                     ))}
                   </ul>
                 </div>
+              )}
+              {onSetDefault && (
+                <Button
+                  className="w-full"
+                  variant={isDefault ? "secondary" : "default"}
+                  onClick={() => {
+                    onSetDefault(role, templateId);
+                    setModalOpen(false);
+                  }}
+                >
+                  {isDefault ? (
+                    <>
+                      <Check className="w-4 h-4 mr-1" /> Padrão atual para {role}
+                    </>
+                  ) : (
+                    <>Usar como padrão para {role}</>
+                  )}
+                </Button>
               )}
             </div>
           )}
