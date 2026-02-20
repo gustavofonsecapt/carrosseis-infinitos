@@ -90,8 +90,40 @@ export async function generateOutline(
   });
 }
 
-export async function renderSlides(projectId: string): Promise<Project> {
-  return http<Project>(`/api/projects/${projectId}/render`, { method: "POST" });
+export interface RenderResult {
+  status: "ok" | "partial_failure";
+  project_id: string;
+  total: number;
+  failed: number;
+  slides: Array<{
+    index: number;
+    ok: boolean;
+    render_path?: string;
+    template_id?: string;
+    warnings?: string[];
+    error_code?: string;
+    error_message?: string;
+  }>;
+  failed_slides?: Array<{
+    index: number;
+    ok: boolean;
+    error_code?: string;
+    error_message?: string;
+  }>;
+  template_selection?: Record<string, any>;
+}
+
+export async function renderSlides(projectId: string, debug = false): Promise<RenderResult> {
+  const url = debug
+    ? `/api/projects/${projectId}/render?debug=1`
+    : `/api/projects/${projectId}/render`;
+  const resp = await fetch(`${API_BASE}${url}`, { method: "POST" });
+  if (!resp.ok && resp.status !== 207) {
+    const errorBody = await resp.json().catch(() => ({}));
+    const message = errorBody.error?.message || `HTTP Error ${resp.status}`;
+    throw new Error(message);
+  }
+  return resp.json();
 }
 
 export async function exportProject(projectId: string): Promise<void> {

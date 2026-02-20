@@ -2,9 +2,12 @@ from __future__ import annotations
 
 import base64
 import logging
+import traceback
+from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from time import perf_counter
+from typing import Any
 from uuid import UUID
 
 from bs4 import BeautifulSoup, Tag
@@ -46,6 +49,36 @@ VIEWPORTS: dict[ProjectType, Viewport] = {
 logger = logging.getLogger(__name__)
 
 
+# ── Per-slide render result ────────────────────────────────────────
+
+@dataclass
+class SlideRenderResult:
+    index: int
+    ok: bool
+    render_path: str | None = None
+    template_id: str | None = None
+    template_path: str | None = None
+    warnings: list[str] = field(default_factory=list)
+    error_code: str | None = None
+    error_message: str | None = None
+
+    def to_dict(self) -> dict[str, Any]:
+        d: dict[str, Any] = {"index": self.index, "ok": self.ok}
+        if self.render_path:
+            d["render_path"] = self.render_path
+        if self.template_id:
+            d["template_id"] = self.template_id
+        if self.template_path:
+            d["template_path"] = self.template_path
+        if self.warnings:
+            d["warnings"] = self.warnings
+        if self.error_code:
+            d["error_code"] = self.error_code
+        if self.error_message:
+            d["error_message"] = self.error_message
+        return d
+
+
 # ── Appearance resolution helpers ──────────────────────────────────
 
 def _resolve_effective_theme(variant: TemplateVariant, appearance: dict) -> tuple[str, list[str]]:
@@ -60,22 +93,41 @@ def _resolve_effective_theme(variant: TemplateVariant, appearance: dict) -> tupl
     return effective, warnings
 
 
-def _resolve_effective_scrim(variant: TemplateVariant, appearance: dict) -> tuple[ScrimConfig, list[str]]:
+def _resolve_effective_scrim(
+    variant: TemplateVariant,
+    appearance: dict,
+    has_image: bool = False,
+) -> tuple[ScrimConfig, list[str]]:
     """Merge slide appearance.scrim over variant defaults. Return (config, warnings)."""
     warnings = []
     scrim_override = appearance.get("scrim", {})
 
-    enabled = scrim_override.get("enabled", variant.scrim.enabled)
+    # Auto-enable scrim when image + text and no explicit override
+    default_enabled = variant.scrim.enabled
+    if has_image and "enabled" not in scrim_override:
+        default_enabled = True
+        if not variant.scrim.enabled:
+            warnings.append("scrim_auto_enabled_image_text")
+
+    enabled = scrim_override.get("enabled", default_enabled)
     strength = scrim_override.get("strength", variant.scrim.strength)
     position = scrim_override.get("position", variant.scrim.position)
     mode = scrim_override.get("mode", variant.scrim.scrim_mode)
-    # Determine color mode from effective theme (dark theme = dark scrim color)
     color_mode = variant.scrim.mode  # "soft" or "dark"
 
     if "enabled" in scrim_override and scrim_override["enabled"] != variant.scrim.enabled:
         warnings.append("scrim_disabled" if not enabled else "scrim_enabled")
     if "strength" in scrim_override and scrim_override["strength"] != variant.scrim.strength:
         warnings.append("scrim_strength_changed")
+
+    # Track disabled reason
+    if not enabled:
+        if not has_image:
+            warnings.append("scrim_disabled_reason:no_image")
+        elif "enabled" in scrim_override and not scrim_override["enabled"]:
+            warnings.append("scrim_disabled_reason:user_disabled")
+        else:
+            warnings.append("scrim_disabled_reason:template_scrim_disabled")
 
     return ScrimConfig(
         enabled=enabled,
@@ -89,7 +141,6 @@ def _resolve_effective_scrim(variant: TemplateVariant, appearance: dict) -> tupl
 # ── Scrim CSS generators ───────────────────────────────────────────
 
 def _scrim_gradient_value(scrim: ScrimConfig, effective_theme: str) -> str:
-    """Generate a CSS gradient string for scrim overlay."""
     if effective_theme == "dark" or scrim.mode == "dark":
         base_color = f"rgba(0, 0, 0, {scrim.strength})"
         fade_color = "rgba(0, 0, 0, 0)"
@@ -102,12 +153,11 @@ def _scrim_gradient_value(scrim: ScrimConfig, effective_theme: str) -> str:
         return f"linear-gradient(to top, {base_color} 0%, {base_color} 30%, {fade_color} 70%)"
     elif pos == "top":
         return f"linear-gradient(to bottom, {base_color} 0%, {base_color} 30%, {fade_color} 70%)"
-    else:  # center
+    else:
         return f"linear-gradient(to bottom, {fade_color} 0%, {base_color} 25%, {base_color} 75%, {fade_color} 100%)"
 
 
 def _scrim_box_value(scrim: ScrimConfig, effective_theme: str) -> str:
-    """Generate a solid translucent color for box scrim mode."""
     if effective_theme == "dark" or scrim.mode == "dark":
         return f"rgba(0, 0, 0, {scrim.strength})"
     else:
@@ -119,7 +169,8 @@ class RenderService:
         self.db = db
         self.data_dir = settings.data_dir
 
-    async def render_project(self, project: Project) -> None:
+    async def render_project(self, project: Project, *, debug: bool = False) -> list[SlideRenderResult]:
+        """Render all slides. Returns per-slide results. Never raises 500 without details."""
         if not project.slides:
             raise AppError("invalid_state", "Project has no slides", status.HTTP_400_BAD_REQUEST)
 
@@ -127,49 +178,251 @@ class RenderService:
         log_path = self._render_log_path(project.id)
         log_path.parent.mkdir(parents=True, exist_ok=True)
 
+        results: list[SlideRenderResult] = []
+        failed_count = 0
+
         try:
             async with async_playwright() as p:
                 browser = await p.chromium.launch()
                 page = await browser.new_page(viewport={"width": viewport[0], "height": viewport[1]})
                 with log_path.open("a", encoding="utf-8") as log_file:
                     for slide in sorted(project.slides, key=lambda s: s.index):
-                        started = perf_counter()
-                        png_path, variant, warnings = await self._render_slide(page, project, slide)
-                        duration = perf_counter() - started
-                        slide.render_path = str(png_path.relative_to(settings.data_dir.parent))
-                        self.db.add(slide)
-
-                        log_entry = (
-                            f"{datetime.utcnow().isoformat()} slide={slide.index} role={slide.role.value} "
-                            f"template={variant.id} theme={variant.theme} "
-                            f"scrim={'yes' if variant.scrim.enabled else 'no'} "
-                            f"duration={duration:.3f}s "
-                            f"warnings={','.join(warnings) if warnings else 'none'}\n"
-                        )
-                        log_file.write(log_entry)
+                        result = await self._render_slide_safe(page, project, slide, log_file, debug=debug)
+                        results.append(result)
+                        if not result.ok:
+                            failed_count += 1
                 await browser.close()
         except Exception as exc:
-            logger.exception("Render failed for project %s", project.id)
-            raise AppError("render_failed", "Render failed", status.HTTP_500_INTERNAL_SERVER_ERROR, {"project_id": str(project.id)}) from exc
+            logger.exception("Browser-level render failure for project %s", project.id)
+            # Return partial results + a global error
+            raise AppError(
+                "render_browser_crash",
+                f"Playwright crashed: {exc}",
+                status.HTTP_500_INTERNAL_SERVER_ERROR,
+                {
+                    "project_id": str(project.id),
+                    "completed_slides": [r.to_dict() for r in results],
+                    "traceback": traceback.format_exc(),
+                },
+            ) from exc
+
         self.db.commit()
 
-    async def _render_slide(self, page: Page, project: Project, slide: Slide) -> tuple[Path, TemplateVariant, list[str]]:
-        variant = self._resolve_variant(project, slide)
-        html_content, warnings = self._build_html(slide, variant)
-        html_path, png_path = self._target_paths(project.id, slide.index)
-        html_path.write_text(html_content, encoding="utf-8")
+        if failed_count > 0:
+            logger.warning("Render completed with %d/%d failures for project %s", failed_count, len(results), project.id)
 
-        await page.set_content(html_content, wait_until="networkidle")
-        await page.wait_for_function(
-            """
-            () => Array.from(document.images)
-                .filter(img => img.getAttribute('src'))
-                .every(img => img.complete && img.naturalWidth > 0)
-            """
+        return results
+
+    async def _render_slide_safe(
+        self, page: Page, project: Project, slide: Slide, log_file, *, debug: bool = False
+    ) -> SlideRenderResult:
+        """Render a single slide, catching per-slide errors."""
+        started = perf_counter()
+        try:
+            # Resolve variant (validates template exists)
+            variant = self._resolve_variant(project, slide)
+
+            # Log template info
+            logger.info(
+                "Rendering slide %d: template_id=%s template_path=%s",
+                slide.index, variant.id, variant.file,
+            )
+
+            html_content, warnings = self._build_html(slide, variant)
+            html_path, png_path = self._target_paths(project.id, slide.index)
+            html_path.write_text(html_content, encoding="utf-8")
+
+            # Debug mode: save HTML to debug dir
+            if debug:
+                debug_dir = self.data_dir / "projects" / str(project.id) / "renders" / "html_debug"
+                debug_dir.mkdir(parents=True, exist_ok=True)
+                debug_path = debug_dir / f"slide_{slide.index:02d}.html"
+                debug_path.write_text(html_content, encoding="utf-8")
+
+            await page.set_content(html_content, wait_until="networkidle")
+            await page.wait_for_function(
+                """
+                () => Array.from(document.images)
+                    .filter(img => img.getAttribute('src'))
+                    .every(img => img.complete && img.naturalWidth > 0)
+                """
+            )
+            await page.wait_for_timeout(150)
+            await page.screenshot(path=str(png_path))
+
+            duration = perf_counter() - started
+            slide.render_path = str(png_path.relative_to(settings.data_dir.parent))
+            slide.warnings = warnings if warnings else None
+            self.db.add(slide)
+
+            log_entry = (
+                f"{datetime.utcnow().isoformat()} slide={slide.index} role={slide.role.value} "
+                f"template_id={variant.id} template_path={variant.file} "
+                f"theme={variant.theme} "
+                f"scrim={'yes' if variant.scrim.enabled else 'no'} "
+                f"duration={duration:.3f}s "
+                f"warnings={','.join(warnings) if warnings else 'none'}\n"
+            )
+            log_file.write(log_entry)
+
+            return SlideRenderResult(
+                index=slide.index,
+                ok=True,
+                render_path=slide.render_path,
+                template_id=variant.id,
+                template_path=variant.file,
+                warnings=warnings,
+            )
+
+        except AppError as exc:
+            duration = perf_counter() - started
+            logger.error("Slide %d render failed: %s - %s", slide.index, exc.code, exc.message)
+            log_file.write(
+                f"{datetime.utcnow().isoformat()} slide={slide.index} ERROR code={exc.code} msg={exc.message} duration={duration:.3f}s\n"
+            )
+
+            # Try to save a debug screenshot even on failure
+            if debug:
+                try:
+                    debug_dir = self.data_dir / "projects" / str(project.id) / "renders" / "html_debug"
+                    debug_dir.mkdir(parents=True, exist_ok=True)
+                    await page.screenshot(path=str(debug_dir / f"slide_{slide.index:02d}_failed.png"))
+                except Exception:
+                    pass
+
+            return SlideRenderResult(
+                index=slide.index,
+                ok=False,
+                error_code=exc.code,
+                error_message=exc.message,
+                warnings=[],
+            )
+
+        except Exception as exc:
+            duration = perf_counter() - started
+            tb = traceback.format_exc()
+            logger.exception("Unexpected error rendering slide %d", slide.index)
+            log_file.write(
+                f"{datetime.utcnow().isoformat()} slide={slide.index} EXCEPTION {exc} duration={duration:.3f}s\n"
+            )
+
+            if debug:
+                try:
+                    debug_dir = self.data_dir / "projects" / str(project.id) / "renders" / "html_debug"
+                    debug_dir.mkdir(parents=True, exist_ok=True)
+                    await page.screenshot(path=str(debug_dir / f"slide_{slide.index:02d}_failed.png"))
+                except Exception:
+                    pass
+
+            return SlideRenderResult(
+                index=slide.index,
+                ok=False,
+                error_code="unexpected_error",
+                error_message=str(exc),
+                warnings=[],
+            )
+
+    async def render_template_preview(
+        self, template_id: str, payload: dict[str, Any] | None = None, format_key: str = "carousel"
+    ) -> tuple[bytes, list[str], dict[str, Any]]:
+        """Render a single template with mock/provided data. Returns (png_bytes, warnings, slot_info)."""
+        # Find the variant across all families
+        variant, family_key, role_key = self._find_variant_by_id(template_id, format_key)
+
+        # Load slot schema
+        try:
+            if family_key not in {"carousel", "stories"}:
+                slot_schema = template_registry.get_family_slots_for_role(family_key, format_key, role_key)
+            else:
+                slot_schema = template_registry.get_slots(f"{format_key}/{role_key}")
+        except Exception:
+            slot_schema = {"slots": {}}
+
+        # Build mock payload if none provided
+        if not payload:
+            payload = self._build_mock_payload(slot_schema, role_key)
+
+        # Determine which slots are missing
+        all_slots = slot_schema.get("slots", {})
+        missing_slots = [k for k in all_slots if k not in payload and all_slots[k].get("required")]
+        warnings: list[str] = [f"slot_missing:{s}" for s in missing_slots]
+
+        # Create a mock slide
+        mock_slide = type("MockSlide", (), {
+            "index": 1,
+            "role": SlideRole.COVER,
+            "payload": payload,
+            "image_path": None,
+        })()
+
+        html_content, build_warnings = self._build_html(mock_slide, variant)
+        warnings.extend(build_warnings)
+
+        viewport = VIEWPORTS.get(
+            ProjectType.CAROUSEL if format_key == "carousel" else ProjectType.STORIES_10X,
+            (1080, 1350),
         )
-        await page.wait_for_timeout(150)
-        await page.screenshot(path=str(png_path))
-        return png_path, variant, warnings
+
+        async with async_playwright() as p:
+            browser = await p.chromium.launch()
+            page = await browser.new_page(viewport={"width": viewport[0], "height": viewport[1]})
+            await page.set_content(html_content, wait_until="networkidle")
+            await page.wait_for_timeout(200)
+            png_bytes = await page.screenshot()
+            await browser.close()
+
+        slot_info = {
+            "template_id": variant.id,
+            "template_path": variant.file,
+            "template_label": variant.label,
+            "theme": variant.theme,
+            "available_slots": list(all_slots.keys()),
+            "filled_slots": [k for k in all_slots if k in payload],
+            "missing_required": missing_slots,
+        }
+
+        return png_bytes, warnings, slot_info
+
+    def _find_variant_by_id(self, template_id: str, format_key: str) -> tuple[TemplateVariant, str, str]:
+        """Search all families/formats for a variant by ID."""
+        registry = template_registry.registry
+
+        for family_key, family_data in registry.items():
+            if family_key in {"carousel", "stories"}:
+                # Legacy format
+                for role_key, variants in family_data.items():
+                    if isinstance(variants, list):
+                        for v in variants:
+                            if v["id"] == template_id:
+                                variant = template_registry.get_variant(family_key, role_key, template_id)
+                                return variant, family_key, role_key
+            else:
+                # Family with format sub-keys
+                fmt_data = family_data.get(format_key, {})
+                for role_key, variants in fmt_data.items():
+                    if isinstance(variants, list):
+                        for v in variants:
+                            if v["id"] == template_id:
+                                variant = template_registry.get_variant(family_key, role_key, template_id, format_key=format_key)
+                                return variant, family_key, role_key
+
+        raise AppError("template_not_found", f"Template '{template_id}' not found in registry", status.HTTP_404_NOT_FOUND)
+
+    def _build_mock_payload(self, slot_schema: dict[str, Any], role_key: str) -> dict[str, Any]:
+        """Generate a mock payload from slot definitions."""
+        slots = slot_schema.get("slots", {})
+        payload: dict[str, Any] = {}
+        for key, spec in slots.items():
+            if key == "image":
+                continue
+            max_chars = spec.get("max_chars", 40)
+            desc = spec.get("description", key)
+            if key == "bullets":
+                max_items = spec.get("max_items", 3)
+                payload["bullets"] = [f"Item exemplo {i+1}" for i in range(min(max_items, 3))]
+            else:
+                payload[key] = desc[:max_chars]
+        return payload
 
     def _resolve_variant(self, project: Project, slide: Slide):
         selection = project.template_selection or {}
@@ -180,10 +433,8 @@ class RenderService:
         format_key = FAMILY_MAP[project.type]
         family_name = selection.get("family") if isinstance(selection, dict) else None
 
-        # Per-slide variant override (from payload.template_variant)
         per_slide_variant = slide.payload.get("template_variant") if slide.payload else None
-
-        selected_id = per_slide_variant  # prioritize per-slide choice
+        selected_id = per_slide_variant
 
         if not selected_id:
             if isinstance(selection, dict):
@@ -199,7 +450,12 @@ class RenderService:
                     family_variants = template_registry.registry[family_name][format_key][role_key]
                     selected_id = family_variants[0]["id"]
                 except KeyError:
-                    raise AppError("template_not_found", f"Family {family_name} has no {format_key}/{role_key}", status.HTTP_404_NOT_FOUND)
+                    raise AppError(
+                        "template_not_found",
+                        f"Family '{family_name}' has no {format_key}/{role_key} variants",
+                        status.HTTP_400_BAD_REQUEST,
+                        {"family": family_name, "format": format_key, "role": role_key},
+                    )
             return template_registry.get_variant(family_name, role_key, selected_id, format_key=format_key)
         else:
             if not selected_id:
@@ -210,7 +466,12 @@ class RenderService:
     def _build_html(self, slide: Slide, variant: TemplateVariant) -> tuple[str, list[str]]:
         template_path = Path(variant.file)
         if not template_path.exists():
-            raise AppError("template_not_found", "Template file missing", status.HTTP_500_INTERNAL_SERVER_ERROR)
+            raise AppError(
+                "template_file_missing",
+                f"Template file not found: {variant.file}",
+                status.HTTP_400_BAD_REQUEST,
+                {"template_id": variant.id, "path": str(variant.file)},
+            )
 
         html = template_path.read_text(encoding="utf-8")
         soup = BeautifulSoup(html, "html.parser")
@@ -218,10 +479,11 @@ class RenderService:
 
         # ── Resolve appearance overrides ──
         appearance = slide.payload.get("appearance", {})
+        has_image = bool(slide.payload.get("image") or slide.image_path)
         effective_theme, theme_warnings = _resolve_effective_theme(variant, appearance)
         warnings.extend(theme_warnings)
 
-        effective_scrim, scrim_warnings = _resolve_effective_scrim(variant, appearance)
+        effective_scrim, scrim_warnings = _resolve_effective_scrim(variant, appearance, has_image=has_image)
         warnings.extend(scrim_warnings)
 
         # Inline CSS from <link> tags
@@ -241,26 +503,21 @@ class RenderService:
         # ── Apply theme class + scrim vars on .slide element ──
         slide_el = soup.select_one(".slide")
         if slide_el:
-            # Remove any legacy dark class
             classes = slide_el.get("class", [])
             if "dark" in classes:
                 classes.remove("dark")
 
-            # Add theme class
             theme_class = f"theme-{effective_theme}"
             if theme_class not in classes:
                 classes.append(theme_class)
             slide_el["class"] = classes
 
-            # Build inline style with scrim vars
             existing_style = slide_el.get("style", "")
-            has_image = bool(slide.payload.get("image") or slide.image_path)
 
             if effective_scrim.enabled and has_image:
                 if effective_scrim.scrim_mode == "box":
                     scrim_val = _scrim_box_value(effective_scrim, effective_theme)
                     existing_style += f" --scrim-bg: transparent; --scrim-box-bg: {scrim_val};"
-                    # Inject scrim-box div before .content
                     content_el = slide_el.select_one(".content")
                     if content_el:
                         box_div = soup.new_tag("div", **{"class": "scrim-box"})
@@ -275,8 +532,6 @@ class RenderService:
                              effective_scrim.position, slide.index)
             elif not effective_scrim.enabled:
                 existing_style += " --scrim-bg: transparent;"
-                if "scrim_disabled" not in warnings:
-                    warnings.append("scrim_disabled")
 
             if existing_style.strip():
                 slide_el["style"] = existing_style.strip()

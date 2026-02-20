@@ -49,7 +49,17 @@ export default function ProjectEditor() {
 
   async function handleRender() {
     setLoading("render");
-    await renderSlides(project!.id);
+    try {
+      const result = await renderSlides(project!.id);
+      if (result.failed > 0) {
+        const failedInfo = result.failed_slides?.map(
+          (s) => `Slide ${s.index}: ${s.error_code} — ${s.error_message}`
+        ).join("\n") || "Detalhes indisponíveis";
+        alert(`⚠ Render parcial: ${result.failed}/${result.total} slides falharam.\n\n${failedInfo}`);
+      }
+    } catch (err: any) {
+      alert(`Erro no render: ${err.message}`);
+    }
     const refreshed = await fetchProjectWithSlides(project!.id);
     setProject(refreshed);
     setLoading("");
