@@ -2,8 +2,8 @@ import { useEffect, useState, useCallback } from "react";
 import { fetchTemplateRegistry } from "@/services/api";
 import TemplateCard from "@/components/TemplateCard";
 import { Button } from "@/components/ui/button";
-import { RefreshCw, Loader2 } from "lucide-react";
-import { Skeleton } from "@/components/ui/skeleton";
+import { RefreshCw, Loader2, Trash2 } from "lucide-react";
+import type { TemplateSelection } from "@/types/project";
 
 interface TemplateEntry {
   id: string;
@@ -23,12 +23,10 @@ function parseRegistry(registry: Record<string, any>): Record<string, ParsedTemp
   const grouped: Record<string, ParsedTemplate[]> = {};
 
   for (const [topKey, topValue] of Object.entries(registry)) {
-    // Check if this is a family (has nested format keys like carousel/stories)
     const isFamily = topValue && typeof topValue === "object" &&
       Object.values(topValue).some((v: any) => typeof v === "object" && !Array.isArray(v) && !v.id);
 
     if (isFamily) {
-      // Family like premium_editorial_v1: { carousel: { cover: [...], body: [...] }, stories: { frame: [...] } }
       const familyName = topKey;
       for (const [formatKey, roles] of Object.entries(topValue as Record<string, any>)) {
         for (const [roleKey, templates] of Object.entries(roles as Record<string, any>)) {
@@ -47,7 +45,6 @@ function parseRegistry(registry: Record<string, any>): Record<string, ParsedTemp
         }
       }
     } else {
-      // Legacy: carousel: { cover: [...], body: [...] }  or stories: { frame: [...] }
       const formatKey = topKey;
       for (const [roleKey, templates] of Object.entries(topValue as Record<string, any>)) {
         if (!Array.isArray(templates)) continue;
@@ -74,11 +71,26 @@ const FAMILY_LABELS: Record<string, string> = {
   premium_editorial_v1: "Premium Editorial V1",
 };
 
+// Persistent defaults storage
+function loadDefaults(): TemplateSelection {
+  try {
+    const raw = localStorage.getItem("cf_template_defaults");
+    return raw ? JSON.parse(raw) : { family: "premium_editorial_v1" };
+  } catch {
+    return { family: "premium_editorial_v1" };
+  }
+}
+
+function saveDefaults(defaults: TemplateSelection) {
+  localStorage.setItem("cf_template_defaults", JSON.stringify(defaults));
+}
+
 export default function TemplateGallery() {
   const [registry, setRegistry] = useState<Record<string, ParsedTemplate[]> | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [cacheKey, setCacheKey] = useState(1);
+  const [defaults, setDefaults] = useState<TemplateSelection>(loadDefaults);
 
   const loadRegistry = useCallback(async () => {
     setLoading(true);
@@ -101,21 +113,79 @@ export default function TemplateGallery() {
     setCacheKey((k) => k + 1);
   };
 
+  const handleClearBackendCache = async () => {
+    try {
+      const API_BASE = import.meta.env.VITE_API_URL || "http://127.0.0.1:8100";
+      await fetch(`${API_BASE}/api/templates/preview-cache`, { method: "DELETE" });
+      setCacheKey((k) => k + 1);
+    } catch {
+      // Backend offline, just bust frontend cache
+      setCacheKey((k) => k + 1);
+    }
+  };
+
+  const handleSetDefault = (role: string, templateId: string) => {
+    setDefaults((prev) => {
+      // Detect format from the template
+      const format = templateId.startsWith("pe_story") ? "stories" : "carousel";
+      const updated: TemplateSelection = {
+        ...prev,
+        [format]: {
+          ...(prev[format as keyof TemplateSelection] as Record<string, string> || {}),
+          [role]: templateId,
+        },
+      };
+      saveDefaults(updated);
+      return updated;
+    });
+  };
+
+  const getDefaultForRole = (format: string, role: string): string | undefined => {
+    const formatBlock = defaults[format as keyof TemplateSelection];
+    if (typeof formatBlock === "object" && formatBlock !== null) {
+      return (formatBlock as Record<string, string>)[role];
+    }
+    return undefined;
+  };
+
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between flex-wrap gap-3">
         <div>
           <h1 className="text-2xl font-bold tracking-tight">Template Gallery</h1>
           <p className="text-sm text-muted-foreground mt-1">
             Previews gerados via Playwright — o que você vê é o que o render produz.
           </p>
         </div>
-        <Button variant="outline" size="sm" onClick={handleRegenerate}>
-          <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
-          Regerar thumbnails
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" size="sm" onClick={handleRegenerate}>
+            <RefreshCw className="w-3.5 h-3.5 mr-1.5" />
+            Regerar
+          </Button>
+          <Button variant="outline" size="sm" onClick={handleClearBackendCache}>
+            <Trash2 className="w-3.5 h-3.5 mr-1.5" />
+            Limpar cache
+          </Button>
+        </div>
       </div>
+
+      {/* Defaults summary */}
+      {(defaults.carousel || defaults.stories) && (
+        <div className="rounded-lg border bg-muted/50 p-3 text-xs space-y-1">
+          <p className="font-medium text-sm">Defaults selecionados:</p>
+          {defaults.carousel && typeof defaults.carousel === "object" && Object.entries(defaults.carousel).map(([role, id]) => (
+            <p key={role} className="text-muted-foreground">
+              Carousel/{role}: <code className="text-foreground">{id}</code>
+            </p>
+          ))}
+          {defaults.stories && typeof defaults.stories === "object" && Object.entries(defaults.stories).map(([role, id]) => (
+            <p key={role} className="text-muted-foreground">
+              Stories/{role}: <code className="text-foreground">{id}</code>
+            </p>
+          ))}
+        </div>
+      )}
 
       {/* Loading state */}
       {loading && (
@@ -137,7 +207,6 @@ export default function TemplateGallery() {
 
       {/* Gallery sections */}
       {registry && Object.entries(registry).map(([familyKey, templates]) => {
-        // Group by role
         const byRole: Record<string, ParsedTemplate[]> = {};
         for (const t of templates) {
           if (!byRole[t.role]) byRole[t.role] = [];
@@ -165,6 +234,8 @@ export default function TemplateGallery() {
                       role={t.role}
                       family={t.family}
                       cacheKey={cacheKey}
+                      onSetDefault={handleSetDefault}
+                      isDefault={getDefaultForRole(t.format, t.role) === t.id}
                     />
                   ))}
                 </div>

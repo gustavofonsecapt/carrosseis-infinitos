@@ -31,10 +31,22 @@ export default function CreateProject() {
     if (!title.trim()) return;
     setLoading(true);
 
-    const templateSelection: TemplateSelection | undefined =
-      templateFamily !== "classic"
-        ? { family: templateFamily }
-        : undefined;
+    // Build template_selection merging family + gallery defaults
+    let templateSelection: TemplateSelection | undefined = undefined;
+    if (templateFamily !== "classic") {
+      templateSelection = { family: templateFamily };
+      // Merge per-role defaults from gallery
+      try {
+        const raw = localStorage.getItem("cf_template_defaults");
+        if (raw) {
+          const galleryDefaults = JSON.parse(raw);
+          const fmtKey = isCarousel ? "carousel" : "stories";
+          if (galleryDefaults[fmtKey]) {
+            templateSelection[fmtKey as keyof TemplateSelection] = galleryDefaults[fmtKey] as any;
+          }
+        }
+      } catch { /* ignore */ }
+    }
 
     const project = await createProject({
       type: format,
