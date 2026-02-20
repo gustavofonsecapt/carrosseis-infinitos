@@ -8,6 +8,7 @@ import Dashboard from "@/pages/Dashboard";
 import CreateProject from "@/pages/CreateProject";
 import ProjectEditor from "@/pages/ProjectEditor";
 import SettingsPage from "@/pages/Settings";
+import TemplateGallery from "@/pages/TemplateGallery";
 import NotFound from "./pages/NotFound";
 
 const queryClient = new QueryClient();
@@ -23,6 +24,7 @@ const App = () => (
             <Route path="/" element={<Dashboard />} />
             <Route path="/create/:type" element={<CreateProject />} />
             <Route path="/project/:id" element={<ProjectEditor />} />
+            <Route path="/gallery" element={<TemplateGallery />} />
             <Route path="/settings" element={<SettingsPage />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

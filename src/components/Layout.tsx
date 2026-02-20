@@ -1,12 +1,13 @@
 import { ReactNode } from "react";
 import { Link, useLocation } from "react-router-dom";
-import { LayoutDashboard, Settings, Plus, Instagram, Layers } from "lucide-react";
+import { LayoutDashboard, Settings, Plus, Instagram, Layers, GalleryHorizontalEnd } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { to: "/", icon: LayoutDashboard, label: "Dashboard" },
   { to: "/create/carousel", icon: Layers, label: "Novo Carrossel" },
   { to: "/create/stories", icon: Instagram, label: "Novo Stories 10x" },
+  { to: "/gallery", icon: GalleryHorizontalEnd, label: "Galeria" },
   { to: "/settings", icon: Settings, label: "Configurações" },
 ];
 
