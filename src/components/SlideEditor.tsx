@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from "react";
+import { useState, useRef, useEffect, useMemo } from "react";
 import type { UiSlide, SlideAppearance, TemplateVariantInfo } from "@/types/project";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { Upload, Save, X, Sun, Moon, Monitor, LayoutTemplate } from "lucide-react";
+import { Upload, Save, X, Sun, Moon, Monitor, LayoutTemplate, AlertTriangle } from "lucide-react";
 import { Separator } from "@/components/ui/separator";
 import {
   Select,
@@ -26,28 +26,43 @@ interface SlideEditorProps {
   onClose: () => void;
 }
 
-// Slot character limits from slots.json (premium_editorial_v1)
-const SLOT_LIMITS: Record<string, { max_chars?: number; max_items?: number; max_chars_per_item?: number }> = {
-  title: { max_chars: 68 },
+// Slot spec from slots.json
+interface SlotSpec {
+  required?: boolean;
+  max_chars?: number;
+  max_lines?: number;
+  max_items?: number;
+  max_chars_per_item?: number;
+  description?: string;
+}
+
+// Fallback limits if slots.json fails to load
+const FALLBACK_LIMITS: Record<string, SlotSpec> = {
   headline: { max_chars: 68 },
+  title: { max_chars: 68 },
   subtitle: { max_chars: 90 },
   subhead: { max_chars: 90 },
   body: { max_chars: 220 },
   bullets: { max_items: 5, max_chars_per_item: 48 },
+  cta: { max_chars: 20 },
   cta_title: { max_chars: 50 },
   cta_body: { max_chars: 180 },
   cta_button: { max_chars: 20 },
-  cta: { max_chars: 20 },
-  brand: { max_chars: 32 },
+  support: { max_chars: 80 },
   kicker: { max_chars: 32 },
-  category: { max_chars: 32 },
+  brand: { max_chars: 32 },
 };
 
 function CharCount({ value, max }: { value: string; max: number }) {
   const len = value.length;
-  const over = len > max;
+  const ratio = len / max;
+  const colorClass = ratio > 1
+    ? "text-destructive font-semibold"
+    : ratio > 0.8
+    ? "text-amber-500 font-medium"
+    : "text-muted-foreground";
   return (
-    <span className={`text-[10px] tabular-nums ${over ? "text-destructive font-semibold" : "text-muted-foreground"}`}>
+    <span className={`text-[10px] tabular-nums ${colorClass}`}>
       {len}/{max}
     </span>
   );
@@ -67,10 +82,30 @@ const ROLE_REGISTRY_KEY: Record<string, string> = {
   frame_cta: "cta",
 };
 
+// Role to slots.json path mapping (classic layouts)
+const ROLE_SLOTS_PATH: Record<string, Record<string, string>> = {
+  carousel: {
+    cover: "layouts/carousel/cover/slots.json",
+    body: "layouts/carousel/body/slots.json",
+    cta: "layouts/carousel/cta/slots.json",
+  },
+  stories: {
+    frame: "layouts/stories/frame/slots.json",
+    cta: "layouts/stories/cta/slots.json",
+  },
+};
+
 export default function SlideEditor({ format, data, familyName, onSave, onUploadImage, onClose }: SlideEditorProps) {
   const isCarousel = format === "carousel";
+  const formatKey = isCarousel ? "carousel" : "stories";
+  const roleKey = ROLE_REGISTRY_KEY[data.role] || data.role;
   const fileRef = useRef<HTMLInputElement>(null);
 
+  // Dynamic slot schema
+  const [slotSchema, setSlotSchema] = useState<Record<string, SlotSpec>>({});
+  const [schemaLoaded, setSchemaLoaded] = useState(false);
+
+  // Content state
   const [headline, setHeadline] = useState(data.headline || "");
   const [subhead, setSubhead] = useState(data.subhead || data.support || "");
   const [body, setBody] = useState(data.body || "");
@@ -87,15 +122,48 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
   const [scrimPosition, setScrimPosition] = useState(initial.scrim.position);
   const [scrimMode, setScrimMode] = useState(initial.scrim.mode);
 
+  // Load slot schema from appropriate slots.json
+  useEffect(() => {
+    const family = familyName && familyName !== "classic" ? familyName : null;
+
+    if (family) {
+      // Family-based: load family slots.json
+      fetch(`/templates/families/${family}/slots.json`)
+        .then((r) => r.json())
+        .then((schema) => {
+          setSlotSchema(schema.slots || {});
+          setSchemaLoaded(true);
+        })
+        .catch(() => {
+          setSlotSchema(FALLBACK_LIMITS);
+          setSchemaLoaded(true);
+        });
+    } else {
+      // Classic layout: load role-specific slots.json
+      const slotsPath = ROLE_SLOTS_PATH[formatKey]?.[roleKey];
+      if (slotsPath) {
+        fetch(`/templates/${slotsPath}`)
+          .then((r) => r.json())
+          .then((schema) => {
+            setSlotSchema(schema.slots || {});
+            setSchemaLoaded(true);
+          })
+          .catch(() => {
+            setSlotSchema(FALLBACK_LIMITS);
+            setSchemaLoaded(true);
+          });
+      } else {
+        setSlotSchema(FALLBACK_LIMITS);
+        setSchemaLoaded(true);
+      }
+    }
+  }, [familyName, formatKey, roleKey]);
+
   // Load available variants from registry.json
   useEffect(() => {
     fetch("/templates/registry.json")
       .then((r) => r.json())
       .then((registry) => {
-        const formatKey = isCarousel ? "carousel" : "stories";
-        const roleKey = ROLE_REGISTRY_KEY[data.role] || data.role;
-
-        // Try family first, then classic
         const family = familyName && familyName !== "classic" ? familyName : null;
         let variants: any[] = [];
 
@@ -109,15 +177,67 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
           variants.map((v: any) => ({
             id: v.id,
             label: v.label,
-            theme: v.theme,
+            theme: v.theme || "light",
           }))
         );
       })
       .catch(() => {});
-  }, [data.role, format, familyName, isCarousel]);
+  }, [data.role, formatKey, familyName, roleKey]);
+
+  // Resolved limits helper
+  const getLimit = (slot: string) => slotSchema[slot] || FALLBACK_LIMITS[slot] || {};
+
+  // Which slots does this template support?
+  const supportsBullets = !!slotSchema.bullets;
+  const supportsBody = !!slotSchema.body;
+  const supportsCta = !!(slotSchema.cta || slotSchema.cta_button);
+  const supportsSubhead = !!(slotSchema.subhead || slotSchema.subtitle || slotSchema.support);
+
+  // Headline slot key (some templates use "title" instead of "headline")
+  const headlineKey = slotSchema.headline ? "headline" : slotSchema.title ? "title" : "headline";
+  const headlineLimit = getLimit(headlineKey);
+
+  // Subhead slot key
+  const subheadKey = slotSchema.subhead ? "subhead" : slotSchema.subtitle ? "subtitle" : slotSchema.support ? "support" : "subhead";
+  const subheadLimit = getLimit(subheadKey);
+
+  // CTA slot key
+  const ctaKey = slotSchema.cta ? "cta" : slotSchema.cta_button ? "cta_button" : "cta";
+  const ctaLimit = getLimit(ctaKey);
+
+  // Validation warnings
+  const warnings = useMemo(() => {
+    const w: string[] = [];
+    if (headlineLimit.max_chars && headline.length > headlineLimit.max_chars) {
+      w.push(`Headline excede ${headlineLimit.max_chars} caracteres`);
+    }
+    if (subheadLimit.max_chars && subhead.length > subheadLimit.max_chars) {
+      w.push(`Subtítulo excede ${subheadLimit.max_chars} caracteres`);
+    }
+    const bodyLimit = getLimit("body");
+    if (supportsBody && bodyLimit.max_chars && body.length > bodyLimit.max_chars) {
+      w.push(`Corpo excede ${bodyLimit.max_chars} caracteres`);
+    }
+    const bulletsLimit = getLimit("bullets");
+    if (supportsBullets && bulletsLimit.max_items) {
+      const items = bullets.split("\n").filter(Boolean);
+      if (items.length > bulletsLimit.max_items) {
+        w.push(`Bullets excedem ${bulletsLimit.max_items} itens`);
+      }
+      if (bulletsLimit.max_chars_per_item && items.some((b) => b.length > bulletsLimit.max_chars_per_item!)) {
+        w.push(`Algum bullet excede ${bulletsLimit.max_chars_per_item} caracteres`);
+      }
+    }
+    if (supportsCta && ctaLimit.max_chars && cta.length > ctaLimit.max_chars) {
+      w.push(`CTA excede ${ctaLimit.max_chars} caracteres`);
+    }
+    return w;
+  }, [headline, subhead, body, bullets, cta, headlineLimit, subheadLimit, ctaLimit, supportsBody, supportsBullets, supportsCta]);
 
   function handleSave() {
+    // Build payload merging with original data to preserve fields
     const payload: Record<string, any> = {
+      ...data,
       headline,
       subhead: subhead || null,
       support: subhead || null,
@@ -136,8 +256,10 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
       payload.template_variant = templateVariant;
     }
 
-    if (isCarousel) {
+    if (isCarousel && supportsBody) {
       payload.body = body || null;
+    }
+    if (supportsBullets) {
       payload.bullets = bullets ? bullets.split("\n").filter(Boolean) : [];
     }
 
@@ -145,8 +267,18 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
       payload.cta = cta || null;
     }
 
+    // Remove UI-only fields
+    delete payload.n;
+    delete payload.render_path;
+    delete payload.image_path;
+
+    if (warnings.length > 0) {
+      toast.warning(`Salvo com avisos: ${warnings.length} campo(s) excedem o limite`);
+    } else {
+      toast.success("Card salvo! Renderize novamente para ver o resultado final.");
+    }
+
     onSave(payload);
-    toast.success("Card salvo! Renderize novamente para ver o resultado final.");
     onClose();
   }
 
@@ -185,76 +317,87 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
       )}
 
       <div className="grid gap-3">
+        {/* Headline */}
         <div>
           <div className="flex items-center justify-between mb-1">
             <Label className="text-xs">Headline</Label>
-            <CharCount value={headline} max={SLOT_LIMITS.title.max_chars!} />
+            {headlineLimit.max_chars && <CharCount value={headline} max={headlineLimit.max_chars} />}
           </div>
           <Input
             value={headline}
             onChange={(e) => setHeadline(e.target.value)}
-            className={headline.length > SLOT_LIMITS.title.max_chars! ? "border-destructive" : ""}
+            className={headlineLimit.max_chars && headline.length > headlineLimit.max_chars ? "border-destructive" : ""}
           />
         </div>
 
-        <div>
-          <div className="flex items-center justify-between mb-1">
-            <Label className="text-xs">{isCarousel ? "Subtítulo" : "Texto de suporte"}</Label>
-            <CharCount value={subhead} max={SLOT_LIMITS.subtitle.max_chars!} />
+        {/* Subhead/Subtitle */}
+        {supportsSubhead && (
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-xs">
+                {subheadKey === "support" ? "Texto de suporte" : "Subtítulo"}
+              </Label>
+              {subheadLimit.max_chars && <CharCount value={subhead} max={subheadLimit.max_chars} />}
+            </div>
+            <Input
+              value={subhead}
+              onChange={(e) => setSubhead(e.target.value)}
+              className={subheadLimit.max_chars && subhead.length > subheadLimit.max_chars ? "border-destructive" : ""}
+            />
           </div>
-          <Input
-            value={subhead}
-            onChange={(e) => setSubhead(e.target.value)}
-            className={subhead.length > SLOT_LIMITS.subtitle.max_chars! ? "border-destructive" : ""}
-          />
-        </div>
-
-        {isCarousel && data.role === "body" && (
-          <>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <Label className="text-xs">Corpo do texto</Label>
-                <CharCount value={body} max={SLOT_LIMITS.body.max_chars!} />
-              </div>
-              <Textarea
-                value={body}
-                onChange={(e) => setBody(e.target.value)}
-                rows={3}
-                className={body.length > SLOT_LIMITS.body.max_chars! ? "border-destructive" : ""}
-              />
-            </div>
-            <div>
-              <div className="flex items-center justify-between mb-1">
-                <Label className="text-xs">Bullets (um por linha)</Label>
-                <span className="text-[10px] text-muted-foreground">
-                  {bullets.split("\n").filter(Boolean).length}/{SLOT_LIMITS.bullets.max_items} itens
-                </span>
-              </div>
-              <Textarea
-                value={bullets}
-                onChange={(e) => setBullets(e.target.value)}
-                rows={3}
-                placeholder={`Ponto 1\nPonto 2\nPonto 3`}
-              />
-              {bullets.split("\n").filter(Boolean).some((b) => b.length > SLOT_LIMITS.bullets.max_chars_per_item!) && (
-                <p className="text-[10px] text-destructive mt-1">
-                  ⚠ Algum item excede {SLOT_LIMITS.bullets.max_chars_per_item} caracteres
-                </p>
-              )}
-            </div>
-          </>
         )}
 
-        {(data.role === "cta" || data.role === "frame_cta") && (
+        {/* Body */}
+        {supportsBody && (data.role === "body" || data.role === "frame") && (
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-xs">Corpo do texto</Label>
+              {getLimit("body").max_chars && <CharCount value={body} max={getLimit("body").max_chars!} />}
+            </div>
+            <Textarea
+              value={body}
+              onChange={(e) => setBody(e.target.value)}
+              rows={3}
+              className={getLimit("body").max_chars && body.length > getLimit("body").max_chars! ? "border-destructive" : ""}
+            />
+          </div>
+        )}
+
+        {/* Bullets — only if template supports them */}
+        {supportsBullets && (data.role === "body" || data.role === "frame") && (
+          <div>
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-xs">Bullets (um por linha)</Label>
+              <span className="text-[10px] text-muted-foreground">
+                {bullets.split("\n").filter(Boolean).length}/{getLimit("bullets").max_items || 5} itens
+              </span>
+            </div>
+            <Textarea
+              value={bullets}
+              onChange={(e) => setBullets(e.target.value)}
+              rows={3}
+              placeholder={`Ponto 1\nPonto 2\nPonto 3`}
+            />
+            {getLimit("bullets").max_chars_per_item &&
+              bullets.split("\n").filter(Boolean).some((b) => b.length > getLimit("bullets").max_chars_per_item!) && (
+                <p className="text-[10px] text-destructive mt-1">
+                  ⚠ Algum item excede {getLimit("bullets").max_chars_per_item} caracteres
+                </p>
+              )}
+          </div>
+        )}
+
+        {/* CTA */}
+        {(data.role === "cta" || data.role === "frame_cta") && supportsCta && (
           <div>
             <div className="flex items-center justify-between mb-1">
               <Label className="text-xs">CTA</Label>
-              <CharCount value={cta} max={SLOT_LIMITS.cta.max_chars!} />
+              {ctaLimit.max_chars && <CharCount value={cta} max={ctaLimit.max_chars} />}
             </div>
             <Input
               value={cta}
               onChange={(e) => setCta(e.target.value)}
-              className={cta.length > SLOT_LIMITS.cta.max_chars! ? "border-destructive" : ""}
+              className={ctaLimit.max_chars && cta.length > ctaLimit.max_chars ? "border-destructive" : ""}
             />
           </div>
         )}
@@ -318,6 +461,21 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
         )}
       </div>
 
+      {/* ── Warnings ── */}
+      {warnings.length > 0 && (
+        <>
+          <Separator />
+          <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 space-y-1">
+            <div className="flex items-center gap-1.5 text-amber-600 text-xs font-semibold">
+              <AlertTriangle className="w-3.5 h-3.5" /> Avisos
+            </div>
+            {warnings.map((w, i) => (
+              <p key={i} className="text-[11px] text-amber-600">{w}</p>
+            ))}
+          </div>
+        </>
+      )}
+
       <div className="flex gap-2">
         <Button onClick={handleSave} className="gap-2">
           <Save className="w-4 h-4" /> Salvar
@@ -332,7 +490,13 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
-            if (file) onUploadImage(file);
+            if (file) {
+              if (file.size > 10 * 1024 * 1024) {
+                toast.error("Imagem excede 10MB. Escolha uma imagem menor.");
+                return;
+              }
+              onUploadImage(file);
+            }
           }}
         />
       </div>

@@ -239,14 +239,32 @@ class RenderService:
                 debug_path = debug_dir / f"slide_{slide.index:02d}.html"
                 debug_path.write_text(html_content, encoding="utf-8")
 
-            await page.set_content(html_content, wait_until="networkidle")
-            await page.wait_for_function(
-                """
-                () => Array.from(document.images)
-                    .filter(img => img.getAttribute('src'))
-                    .every(img => img.complete && img.naturalWidth > 0)
-                """
-            )
+            await page.set_content(html_content, wait_until="domcontentloaded")
+
+            # Wait for fonts with short timeout
+            try:
+                await page.wait_for_function("() => document.fonts.ready.then(() => true)", timeout=3000)
+            except Exception:
+                warnings.append("font_wait_timeout")
+
+            # Wait for images — tolerant: skip imgs without src or with data-uri placeholders
+            try:
+                await page.wait_for_function(
+                    """
+                    () => Array.from(document.images)
+                        .filter(img => {
+                            const src = img.getAttribute('src') || '';
+                            // Skip empty src, data-uri placeholders, and tiny placeholders
+                            if (!src || src.startsWith('data:')) return false;
+                            return true;
+                        })
+                        .every(img => img.complete && img.naturalWidth > 0)
+                    """,
+                    timeout=6000,
+                )
+            except Exception:
+                warnings.append("image_wait_timeout")
+
             await page.wait_for_timeout(150)
             await page.screenshot(path=str(png_path))
 
@@ -366,7 +384,11 @@ class RenderService:
         async with async_playwright() as p:
             browser = await p.chromium.launch()
             page = await browser.new_page(viewport={"width": viewport[0], "height": viewport[1]})
-            await page.set_content(html_content, wait_until="networkidle")
+            await page.set_content(html_content, wait_until="domcontentloaded")
+            try:
+                await page.wait_for_function("() => document.fonts.ready.then(() => true)", timeout=3000)
+            except Exception:
+                warnings.append("font_wait_timeout")
             await page.wait_for_timeout(200)
             png_bytes = await page.screenshot()
             await browser.close()
@@ -563,7 +585,8 @@ class RenderService:
         return str(soup), warnings
 
     def _asset_uri(self, template_path: Path, value: str | None) -> tuple[str, str | None]:
-        placeholder = "data:image/png;base64," + base64.b64encode(b" ").decode()
+        # Valid 1x1 transparent PNG so naturalWidth > 0 and wait doesn't hang
+        placeholder = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
         if not value:
             return placeholder, "image_missing"
         if value.startswith(("http://", "https://")):
