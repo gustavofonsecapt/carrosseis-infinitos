@@ -280,6 +280,12 @@ Saída obrigatória (JSON puro):
             for warning in warnings:
                 logger.info("Slide %s warning: %s", role.value, warning)
 
+            # Resolve and store template_id for this slide
+            template_id = self._resolve_template_id(project, role)
+            if template_id:
+                sanitized_payload["template_id"] = template_id
+                logger.info("Slide n=%s role=%s -> template_id=%s", entry.get("n"), role.value, template_id)
+
             slides.append(
                 Slide(
                     id=str(uuid4()),
@@ -291,6 +297,59 @@ Saída obrigatória (JSON puro):
                 )
             )
         return slides
+
+    def _resolve_template_id(self, project: Project, role: SlideRole) -> str | None:
+        """Resolve the default template_id for a slide role based on project's template_selection."""
+        from app.services.template_service import template_registry
+
+        selection = project.template_selection or {}
+        family = selection.get("family") if isinstance(selection, dict) else None
+
+        format_map = {
+            ProjectType.CAROUSEL: "carousel",
+            ProjectType.STORIES_10X: "stories",
+        }
+        role_key_map = {
+            SlideRole.COVER: "cover",
+            SlideRole.BODY: "body",
+            SlideRole.CTA: "cta",
+            SlideRole.FRAME: "frame",
+            SlideRole.FRAME_CTA: "cta",
+        }
+        format_key = format_map.get(project.type)
+        role_key = role_key_map.get(role)
+        if not format_key or not role_key:
+            return None
+
+        # Check per-role override in selection (e.g. template_selection.carousel.cover)
+        if isinstance(selection, dict):
+            fmt_block = selection.get(format_key)
+            if isinstance(fmt_block, dict) and fmt_block.get(role_key):
+                return fmt_block[role_key]
+
+        if family and family != "classic":
+            try:
+                variants = template_registry.registry[family][format_key][role_key]
+                if variants:
+                    return variants[0]["id"]
+            except KeyError:
+                available = list(template_registry.registry.get(family, {}).get(format_key, {}).keys())
+                raise AppError(
+                    "template_not_found",
+                    f"Family '{family}' has no {format_key}/{role_key} variants. Available roles: {available}",
+                    status.HTTP_400_BAD_REQUEST,
+                    {"family": family, "format": format_key, "role": role_key, "available_roles": available},
+                )
+        else:
+            # Classic/legacy
+            try:
+                variants = template_registry.registry[format_key][role_key]
+                if variants:
+                    return variants[0]["id"]
+            except KeyError:
+                return None
+
+        return None
 
     def _slot_schema_for_role(self, project: Project, role: SlideRole) -> dict[str, Any]:
         role_paths = {

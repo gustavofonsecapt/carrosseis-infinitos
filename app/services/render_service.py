@@ -455,8 +455,12 @@ class RenderService:
         format_key = FAMILY_MAP[project.type]
         family_name = selection.get("family") if isinstance(selection, dict) else None
 
+        # Priority: per-slide template_variant > payload.template_id > selection block > family default
         per_slide_variant = slide.payload.get("template_variant") if slide.payload else None
         selected_id = per_slide_variant
+
+        if not selected_id:
+            selected_id = slide.payload.get("template_id") if slide.payload else None
 
         if not selected_id:
             if isinstance(selection, dict):
@@ -472,11 +476,17 @@ class RenderService:
                     family_variants = template_registry.registry[family_name][format_key][role_key]
                     selected_id = family_variants[0]["id"]
                 except KeyError:
+                    available_roles = list(template_registry.registry.get(family_name, {}).get(format_key, {}).keys())
+                    available_ids = []
+                    for r, vs in template_registry.registry.get(family_name, {}).get(format_key, {}).items():
+                        available_ids.extend([v["id"] for v in vs])
                     raise AppError(
                         "template_not_found",
-                        f"Family '{family_name}' has no {format_key}/{role_key} variants",
+                        f"Family '{family_name}' has no {format_key}/{role_key} variants. "
+                        f"Available roles: {available_roles}. Available IDs: {available_ids}",
                         status.HTTP_400_BAD_REQUEST,
-                        {"family": family_name, "format": format_key, "role": role_key},
+                        {"family": family_name, "format": format_key, "role": role_key,
+                         "available_roles": available_roles, "available_ids": available_ids},
                     )
             return template_registry.get_variant(family_name, role_key, selected_id, format_key=format_key)
         else:
