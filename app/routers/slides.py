@@ -37,6 +37,10 @@ def list_slides(
     return [SlideResponse.model_validate(slide) for slide in slides]
 
 
+# Fields that are "frozen" after outline generation — edits must never remove them
+_PROTECTED_PAYLOAD_KEYS = {"template_id", "template_variant"}
+
+
 @router.patch("/{index}", response_model=SlideResponse)
 def update_slide(
     project_id: UUID,
@@ -51,10 +55,28 @@ def update_slide(
         raise AppError("slide_not_found", str(exc), status.HTTP_404_NOT_FOUND, {"project_id": str(project_id), "index": index}) from exc
 
     update_data = payload.model_dump(exclude_unset=True)
+
+    # Merge payload instead of replacing — protect template_id / template_variant
+    if "payload" in update_data and update_data["payload"] is not None:
+        existing_payload = dict(slide.payload) if slide.payload else {}
+        new_payload = update_data["payload"]
+
+        # Preserve protected keys from existing payload
+        for key in _PROTECTED_PAYLOAD_KEYS:
+            if key in existing_payload and key not in new_payload:
+                new_payload[key] = existing_payload[key]
+
+        existing_payload.update(new_payload)
+        slide.payload = existing_payload
+        del update_data["payload"]
+
     for field, value in update_data.items():
         setattr(slide, field, value)
 
-    if any(key in update_data for key in ("payload", "image_path")):
+    if any(key in update_data for key in ("payload",)) or "payload" not in update_data and "image_path" in update_data:
+        slide.render_path = None
+    # Payload was already merged above, always invalidate render
+    else:
         slide.render_path = None
 
     updated = slide_service.update(slide)
@@ -83,6 +105,10 @@ async def upload_slide_image(
             {"project_id": str(project_id), "index": index},
         ) from exc
 
+    # Snapshot protected payload keys BEFORE upload
+    frozen_template_id = slide.payload.get("template_id") if slide.payload else None
+    frozen_template_variant = slide.payload.get("template_variant") if slide.payload else None
+
     uploads_dir = settings.data_dir / "projects" / str(project_id) / "uploads"
     uploads_dir.mkdir(parents=True, exist_ok=True)
     suffix = Path(file.filename or "uploaded").suffix or ".png"
@@ -94,5 +120,15 @@ async def upload_slide_image(
 
     slide.image_path = str(dest.relative_to(settings.data_dir.parent))
     slide.render_path = None
+
+    # GUARD: upload must NEVER alter template_id or template_variant
+    if slide.payload:
+        payload_copy = dict(slide.payload)
+        if frozen_template_id is not None:
+            payload_copy["template_id"] = frozen_template_id
+        if frozen_template_variant is not None:
+            payload_copy["template_variant"] = frozen_template_variant
+        slide.payload = payload_copy
+
     updated = slide_service.update(slide)
     return SlideResponse.model_validate(updated)
