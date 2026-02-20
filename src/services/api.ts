@@ -157,6 +157,26 @@ export async function uploadSlideImage(
   return mapApiSlideToUiSlide(updated);
 }
 
+// ── Templates API ──
+export async function fetchTemplateRegistry(): Promise<Record<string, any>> {
+  return http<Record<string, any>>("/api/templates");
+}
+
+export async function fetchTemplatePreview(
+  templateId: string,
+  formatKey: string = "carousel"
+): Promise<{
+  image_base64: string;
+  warnings: string[];
+  slot_info: Record<string, any>;
+  template_path?: string;
+}> {
+  return http("/api/templates/" + templateId + "/preview/json?format_key=" + formatKey, {
+    method: "POST",
+    body: JSON.stringify(null),
+  });
+}
+
 // ── Settings (localStorage) ──
 export async function fetchSettings(): Promise<AppSettings> {
   const raw = localStorage.getItem("cf_settings");
