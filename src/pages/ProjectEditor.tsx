@@ -14,7 +14,8 @@ import SlidePreview from "@/components/SlidePreview";
 import SlideEditor from "@/components/SlideEditor";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Sparkles, Image, Download, Loader2 } from "lucide-react";
+import { toast } from "sonner";
+import { ArrowLeft, Sparkles, Image, Download, Loader2, RefreshCw } from "lucide-react";
 
 export default function ProjectEditor() {
   const { id } = useParams<{ id: string }>();
@@ -22,6 +23,7 @@ export default function ProjectEditor() {
   const [settings, setSettings] = useState<AppSettings>({ author_name: "", handle: "", brand_color: "#2a9d8f" });
   const [editingSlide, setEditingSlide] = useState<number | null>(null);
   const [loading, setLoading] = useState("");
+  const [renderWarnings, setRenderWarnings] = useState<Array<{ index: number; warnings: string[] }>>([]);
 
   useEffect(() => {
     Promise.all([fetchProjectWithSlides(id!), fetchSettings()]).then(([p, s]) => {
@@ -49,16 +51,32 @@ export default function ProjectEditor() {
 
   async function handleRender() {
     setLoading("render");
+    setRenderWarnings([]);
     try {
       const result = await renderSlides(project!.id);
-      if (result.failed > 0) {
-        const failedInfo = result.failed_slides?.map(
+
+      // Collect warnings (not errors)
+      const slideWarnings = result.slides
+        .filter((s) => s.ok && s.warnings && s.warnings.length > 0)
+        .map((s) => ({ index: s.index, warnings: s.warnings! }));
+      setRenderWarnings(slideWarnings);
+
+      // Collect actual failures
+      const failures = result.slides.filter((s) => !s.ok);
+
+      if (failures.length > 0) {
+        const failedInfo = failures.map(
           (s) => `Slide ${s.index}: ${s.error_code} — ${s.error_message}`
-        ).join("\n") || "Detalhes indisponíveis";
-        alert(`⚠ Render parcial: ${result.failed}/${result.total} slides falharam.\n\n${failedInfo}`);
+        ).join("\n");
+        toast.error(`${failures.length}/${result.total} slides falharam no render.`);
+        alert(`⚠ Render parcial: ${failures.length}/${result.total} slides falharam.\n\n${failedInfo}`);
+      } else if (slideWarnings.length > 0) {
+        toast.success(`Render concluído com ${slideWarnings.length} aviso(s).`);
+      } else {
+        toast.success("Todos os slides renderizados com sucesso!");
       }
     } catch (err: any) {
-      alert(`Erro no render: ${err.message}`);
+      toast.error(`Erro no render: ${err.message}`);
     }
     const refreshed = await fetchProjectWithSlides(project!.id);
     setProject(refreshed);
@@ -72,16 +90,27 @@ export default function ProjectEditor() {
   }
 
   async function handleSaveSlide(slideN: number, data: Partial<UiSlide>) {
-    const updatedSlide = await updateSlide(project!.id, slideN, data);
-    setProject((prev) => prev ? { ...prev, slides: prev.slides?.map((s) => (s.n === slideN ? updatedSlide : s)) } : prev);
-    setEditingSlide(null);
+    try {
+      const updatedSlide = await updateSlide(project!.id, slideN, data);
+      setProject((prev) => prev ? { ...prev, slides: prev.slides?.map((s) => (s.n === slideN ? updatedSlide : s)) } : prev);
+      setEditingSlide(null);
+    } catch (err: any) {
+      toast.error(`Erro ao salvar: ${err.message}`);
+    }
   }
 
   async function handleUploadImage(slideN: number, file: File) {
-    const updatedSlide = await uploadSlideImage(project!.id, slideN, file);
-    setProject((prev) => prev ? { ...prev, slides: prev.slides?.map((s) => (s.n === slideN ? updatedSlide : s)) } : prev);
-    // Refresh project
-    
+    try {
+      const updatedSlide = await uploadSlideImage(project!.id, slideN, file);
+      setProject((prev) => prev ? { ...prev, slides: prev.slides?.map((s) => (s.n === slideN ? updatedSlide : s)) } : prev);
+      toast.success("Imagem enviada! Renderize para ver o resultado.");
+    } catch (err: any) {
+      if (err.message.includes("413") || err.message.includes("10MB")) {
+        toast.error("Imagem excede o limite de 10MB.");
+      } else {
+        toast.error(`Erro no upload: ${err.message}`);
+      }
+    }
   }
 
   const statusLabels: Record<string, string> = {
@@ -90,6 +119,8 @@ export default function ProjectEditor() {
     rendering: "Renderizando",
     rendered: "Renderizado",
   };
+
+  const hasStaleSlides = slides.some((s) => !s.render_path && s.headline);
 
   return (
     <div className="p-6 md:p-10 max-w-6xl mx-auto">
@@ -158,10 +189,25 @@ export default function ProjectEditor() {
               </div>
             ))}
           </div>
-          {slides.some((s) => !s.render_path && s.headline) && (
-            <p className="text-xs text-amber-600 mb-8">
-              ⚠ Slides editados desde a última renderização. Clique em "Renderizar PNGs" para atualizar.
-            </p>
+
+          {/* Stale slides warning */}
+          {hasStaleSlides && (
+            <div className="flex items-center gap-2 text-xs text-amber-600 mb-4">
+              <RefreshCw className="w-3.5 h-3.5" />
+              <span>Slides editados desde a última renderização. Clique em "Renderizar PNGs" para atualizar.</span>
+            </div>
+          )}
+
+          {/* Render warnings */}
+          {renderWarnings.length > 0 && (
+            <div className="bg-amber-500/10 border border-amber-500/30 rounded-lg p-3 mb-4 space-y-1">
+              <p className="text-xs font-semibold text-amber-600">Avisos do render:</p>
+              {renderWarnings.map((rw) => (
+                <p key={rw.index} className="text-[11px] text-amber-600">
+                  Slide {rw.index}: {rw.warnings.join(", ")}
+                </p>
+              ))}
+            </div>
           )}
         </>
       )}
