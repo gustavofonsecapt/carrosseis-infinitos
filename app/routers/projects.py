@@ -2,8 +2,8 @@ from __future__ import annotations
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, status
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, Depends, Query, status
+from fastapi.responses import JSONResponse, StreamingResponse
 from sqlalchemy.orm import Session
 
 from app.core.db import get_db
@@ -136,12 +136,13 @@ def generate_outline(
     return ProjectResponse.model_validate(project)
 
 
-@router.post("/{project_id}/render", response_model=ProjectResponse, status_code=status.HTTP_202_ACCEPTED)
+@router.post("/{project_id}/render", status_code=status.HTTP_202_ACCEPTED)
 async def render_project_route(
     project_id: UUID,
+    debug: int = Query(0, description="Set to 1 to save debug HTML and failed screenshots"),
     service: ProjectService = Depends(get_service),
     render_service: RenderService = Depends(get_render_service),
-) -> ProjectResponse:
+):
     try:
         project = service.get_project(project_id)
     except ValueError as exc:
@@ -152,17 +153,48 @@ async def render_project_route(
 
     service.mark_rendering(project)
     try:
-        await render_service.render_project(project)
+        results = await render_service.render_project(project, debug=bool(debug))
+    except AppError as exc:
+        service.set_status(project, ProjectStatus.OUTLINED)
+        # Re-raise with full details (including partial results)
+        raise
     except Exception as exc:
         service.set_status(project, ProjectStatus.OUTLINED)
         raise AppError(
             "render_failed",
-            "Render failed",
+            f"Render failed: {exc}",
             status.HTTP_500_INTERNAL_SERVER_ERROR,
             {"project_id": str(project_id)},
         ) from exc
+
+    # Check if any slides failed
+    failed = [r for r in results if not r.ok]
+    if failed:
+        service.set_status(project, ProjectStatus.OUTLINED)
+        return JSONResponse(
+            status_code=status.HTTP_207_MULTI_STATUS,
+            content={
+                "status": "partial_failure",
+                "project_id": str(project_id),
+                "total": len(results),
+                "failed": len(failed),
+                "slides": [r.to_dict() for r in results],
+                "failed_slides": [r.to_dict() for r in failed],
+            },
+        )
+
     updated = service.mark_rendered(project)
-    return ProjectResponse.model_validate(updated)
+    return JSONResponse(
+        status_code=status.HTTP_200_OK,
+        content={
+            "status": "ok",
+            "project_id": str(project_id),
+            "total": len(results),
+            "failed": 0,
+            "slides": [r.to_dict() for r in results],
+            "template_selection": updated.template_selection,
+        },
+    )
 
 
 @router.get("/{project_id}/export")
