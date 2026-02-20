@@ -134,6 +134,9 @@ def generate_outline(
     slides = outline_service.generate(project, ctx)
     service.replace_slides(project, slides)
 
+    # CORREÇÃO: Avisa o banco de dados que o roteiro está pronto para liberar o botão de Render!
+    service.set_status(project, ProjectStatus.OUTLINED)
+
     return ProjectResponse.model_validate(project)
 
 
@@ -157,7 +160,6 @@ async def render_project_route(
         results = await render_service.render_project(project, debug=bool(debug))
     except AppError as exc:
         service.set_status(project, ProjectStatus.OUTLINED)
-        # Re-raise with full details (including partial results)
         raise
     except Exception as exc:
         service.set_status(project, ProjectStatus.OUTLINED)
@@ -168,8 +170,34 @@ async def render_project_route(
             {"project_id": str(project_id)},
         ) from exc
 
-    # Check if any slides failed
     failed = [r for r in results if not r.ok]
+    
+    # A variável que o Python não estava achando:
+    updated_project = service.mark_rendered(project)
+    
+    # Constrói os slides completos com as tags de sucesso pro React não surtar
+    full_slides = []
+    for s in sorted(updated_project.slides, key=lambda x: x.index):
+        slide_dict = {
+            "id": str(s.id),
+            "index": s.index,
+            "role": s.role.value,
+            "payload": s.payload,
+            "render_path": s.render_path,
+            "image_path": s.image_path,
+        }
+        res = next((r for r in results if r.index == s.index), None)
+        if res:
+            slide_dict["template_id"] = res.template_id
+            slide_dict["warnings"] = res.warnings
+            slide_dict["ok"] = res.ok
+            slide_dict["error_code"] = res.error_code
+            slide_dict["error_message"] = res.error_message
+        else:
+            slide_dict["ok"] = False
+            
+        full_slides.append(slide_dict)
+
     if failed:
         service.set_status(project, ProjectStatus.OUTLINED)
         return JSONResponse(
@@ -179,12 +207,11 @@ async def render_project_route(
                 "project_id": str(project_id),
                 "total": len(results),
                 "failed": len(failed),
-                "slides": [r.to_dict() for r in results],
+                "slides": full_slides,
                 "failed_slides": [r.to_dict() for r in failed],
             },
         )
 
-    updated = service.mark_rendered(project)
     return JSONResponse(
         status_code=status.HTTP_200_OK,
         content={
@@ -192,8 +219,8 @@ async def render_project_route(
             "project_id": str(project_id),
             "total": len(results),
             "failed": 0,
-            "slides": [r.to_dict() for r in results],
-            "template_selection": updated.template_selection,
+            "slides": full_slides,
+            "template_selection": updated_project.template_selection,
         },
     )
 

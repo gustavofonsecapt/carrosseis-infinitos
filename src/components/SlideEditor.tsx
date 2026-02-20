@@ -26,7 +26,6 @@ interface SlideEditorProps {
   onClose: () => void;
 }
 
-// Slot spec from slots.json
 interface SlotSpec {
   required?: boolean;
   max_chars?: number;
@@ -36,7 +35,6 @@ interface SlotSpec {
   description?: string;
 }
 
-// Fallback limits if slots.json fails to load
 const FALLBACK_LIMITS: Record<string, SlotSpec> = {
   headline: { max_chars: 68 },
   title: { max_chars: 68 },
@@ -73,7 +71,6 @@ const DEFAULT_APPEARANCE: SlideAppearance = {
   scrim: { enabled: true, strength: 0.35, position: "bottom", mode: "gradient" },
 };
 
-// Role to registry key mapping
 const ROLE_REGISTRY_KEY: Record<string, string> = {
   cover: "cover",
   body: "body",
@@ -82,7 +79,6 @@ const ROLE_REGISTRY_KEY: Record<string, string> = {
   frame_cta: "cta",
 };
 
-// Role to slots.json path mapping (classic layouts)
 const ROLE_SLOTS_PATH: Record<string, Record<string, string>> = {
   carousel: {
     cover: "layouts/carousel/cover/slots.json",
@@ -101,20 +97,51 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
   const roleKey = ROLE_REGISTRY_KEY[data.role] || data.role;
   const fileRef = useRef<HTMLInputElement>(null);
 
-  // Dynamic slot schema
   const [slotSchema, setSlotSchema] = useState<Record<string, SlotSpec>>({});
   const [schemaLoaded, setSchemaLoaded] = useState(false);
 
-  // Content state
-  const [headline, setHeadline] = useState(data.headline || "");
-  const [subhead, setSubhead] = useState(data.subhead || data.support || "");
-  const [body, setBody] = useState(data.body || "");
-  const [bullets, setBullets] = useState((data.bullets || []).join("\n"));
-  const [cta, setCta] = useState(data.cta || "");
-  const [templateVariant, setTemplateVariant] = useState(data.template_variant || "");
+  // --- FUNÇÃO RADAR: Caça o texto em qualquer chave que a IA possa ter inventado ---
+  const extractValue = (obj1: any, obj2: any, keys: string[]) => {
+    for (const k of keys) {
+      if (obj1 && obj1[k]) return obj1[k];
+      if (obj2 && obj2[k]) return obj2[k];
+    }
+    return "";
+  };
+
+  const p = typeof data.payload === 'string' ? JSON.parse(data.payload) : (data.payload || {});
+  
+  const getBullets = (source: any) => {
+    return (Array.isArray(source) ? source : typeof source === "string" ? source.split("\n") : []).join("\n");
+  };
+
+  // Dicionário de possíveis chaves geradas pela IA
+  const headlineKeys = ["title", "headline", "Title", "Headline", "heading", "h1"];
+  const subheadKeys = ["subtitle", "subhead", "support", "kicker", "Subtitle", "Subhead", "description"];
+  const bodyKeys = ["body", "text", "content", "Body", "paragraph"];
+  const ctaKeys = ["cta_button", "cta", "cta_title", "button"];
+  const bulletKeys = ["bullets", "Bullets", "list"];
+
+  const [headline, setHeadline] = useState(extractValue(p, data, headlineKeys));
+  const [subhead, setSubhead] = useState(extractValue(p, data, subheadKeys));
+  const [body, setBody] = useState(extractValue(p, data, bodyKeys));
+  const [bullets, setBullets] = useState(getBullets(extractValue(p, data, bulletKeys)));
+  const [cta, setCta] = useState(extractValue(p, data, ctaKeys));
+  const [templateVariant, setTemplateVariant] = useState(p.template_variant || data.template_variant || "");
+
+  // Força atualização se houver dados novos vindo do backend
+  useEffect(() => {
+    const currentP = typeof data.payload === 'string' ? JSON.parse(data.payload) : (data.payload || {});
+    setHeadline(extractValue(currentP, data, headlineKeys));
+    setSubhead(extractValue(currentP, data, subheadKeys));
+    setBody(extractValue(currentP, data, bodyKeys));
+    setBullets(getBullets(extractValue(currentP, data, bulletKeys)));
+    setCta(extractValue(currentP, data, ctaKeys));
+    setTemplateVariant(currentP.template_variant || data.template_variant || "");
+  }, [data]);
+
   const [availableVariants, setAvailableVariants] = useState<TemplateVariantInfo[]>([]);
 
-  // Appearance state
   const initial = data.appearance || DEFAULT_APPEARANCE;
   const [theme, setTheme] = useState<"auto" | "light" | "dark">(initial.theme);
   const [scrimEnabled, setScrimEnabled] = useState(initial.scrim.enabled);
@@ -122,12 +149,10 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
   const [scrimPosition, setScrimPosition] = useState(initial.scrim.position);
   const [scrimMode, setScrimMode] = useState(initial.scrim.mode);
 
-  // Load slot schema from appropriate slots.json
   useEffect(() => {
     const family = familyName && familyName !== "classic" ? familyName : null;
 
     if (family) {
-      // Family-based: load family slots.json
       fetch(`/templates/families/${family}/slots.json`)
         .then((r) => r.json())
         .then((schema) => {
@@ -139,7 +164,6 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
           setSchemaLoaded(true);
         });
     } else {
-      // Classic layout: load role-specific slots.json
       const slotsPath = ROLE_SLOTS_PATH[formatKey]?.[roleKey];
       if (slotsPath) {
         fetch(`/templates/${slotsPath}`)
@@ -159,7 +183,6 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
     }
   }, [familyName, formatKey, roleKey]);
 
-  // Load available variants from registry.json
   useEffect(() => {
     fetch("/templates/registry.json")
       .then((r) => r.json())
@@ -184,28 +207,22 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
       .catch(() => {});
   }, [data.role, formatKey, familyName, roleKey]);
 
-  // Resolved limits helper
   const getLimit = (slot: string) => slotSchema[slot] || FALLBACK_LIMITS[slot] || {};
 
-  // Which slots does this template support?
   const supportsBullets = !!slotSchema.bullets;
   const supportsBody = !!slotSchema.body;
   const supportsCta = !!(slotSchema.cta || slotSchema.cta_button);
   const supportsSubhead = !!(slotSchema.subhead || slotSchema.subtitle || slotSchema.support);
 
-  // Headline slot key (some templates use "title" instead of "headline")
   const headlineKey = slotSchema.headline ? "headline" : slotSchema.title ? "title" : "headline";
   const headlineLimit = getLimit(headlineKey);
 
-  // Subhead slot key
   const subheadKey = slotSchema.subhead ? "subhead" : slotSchema.subtitle ? "subtitle" : slotSchema.support ? "support" : "subhead";
   const subheadLimit = getLimit(subheadKey);
 
-  // CTA slot key
   const ctaKey = slotSchema.cta ? "cta" : slotSchema.cta_button ? "cta_button" : "cta";
   const ctaLimit = getLimit(ctaKey);
 
-  // Validation warnings
   const warnings = useMemo(() => {
     const w: string[] = [];
     if (headlineLimit.max_chars && headline.length > headlineLimit.max_chars) {
@@ -234,13 +251,37 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
     return w;
   }, [headline, subhead, body, bullets, cta, headlineLimit, subheadLimit, ctaLimit, supportsBody, supportsBullets, supportsCta]);
 
+  // --- SALVAMENTO NÃO-DESTRUTIVO ---
   function handleSave() {
-    // Build payload merging with original data to preserve fields
-    const payload: Record<string, any> = {
+    const p = typeof data.payload === 'string' ? JSON.parse(data.payload) : (data.payload || {});
+    const updatedPayload: Record<string, any> = { ...p };
+
+    // Salva TODAS as variações simultaneamente para agradar o React e o Jinja2
+    updatedPayload.headline = headline;
+    updatedPayload.title = headline;
+    
+    if (supportsSubhead) {
+      updatedPayload.subhead = subhead || null;
+      updatedPayload.subtitle = subhead || null;
+      updatedPayload.support = subhead || null;
+    }
+    
+    if (supportsCta && (data.role === "cta" || data.role === "frame_cta")) {
+      updatedPayload.cta = cta || null;
+      updatedPayload.cta_button = cta || null;
+    }
+
+    if (isCarousel && supportsBody && (data.role === "body" || data.role === "frame")) {
+      updatedPayload.body = body || null;
+    }
+    
+    if (supportsBullets && (data.role === "body" || data.role === "frame")) {
+      updatedPayload.bullets = bullets ? bullets.split("\n").filter(Boolean) : [];
+    }
+
+    const payloadToSend: Record<string, any> = {
       ...data,
-      headline,
-      subhead: subhead || null,
-      support: subhead || null,
+      payload: updatedPayload,
       appearance: {
         theme,
         scrim: {
@@ -253,24 +294,23 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
     };
 
     if (templateVariant) {
-      payload.template_variant = templateVariant;
+      payloadToSend.template_variant = templateVariant;
+      updatedPayload.template_variant = templateVariant;
     }
 
-    if (isCarousel && supportsBody) {
-      payload.body = body || null;
-    }
-    if (supportsBullets) {
-      payload.bullets = bullets ? bullets.split("\n").filter(Boolean) : [];
-    }
+    // Espelha na raiz por segurança (fallback)
+    payloadToSend.headline = headline;
+    payloadToSend.title = headline;
+    payloadToSend.subhead = subhead || null;
+    payloadToSend.subtitle = subhead || null;
+    payloadToSend.body = body || null;
+    payloadToSend.bullets = updatedPayload.bullets;
+    payloadToSend.cta = cta || null;
+    payloadToSend.cta_button = cta || null;
 
-    if (data.role === "cta" || data.role === "frame_cta") {
-      payload.cta = cta || null;
-    }
-
-    // Remove UI-only fields
-    delete payload.n;
-    delete payload.render_path;
-    delete payload.image_path;
+    // AQUI ESTAVA O SEU BUG: Removidas as linhas "delete updatedPayload.headline" 
+    // e "delete payloadToSend.image_path". Ao deixar de apagar as coisas, a imagem não
+    // some mais, e o modal voltará a ler o texto que acabou de salvar.
 
     if (warnings.length > 0) {
       toast.warning(`Salvo com avisos: ${warnings.length} campo(s) excedem o limite`);
@@ -278,7 +318,7 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
       toast.success("Card salvo! Renderize novamente para ver o resultado final.");
     }
 
-    onSave(payload);
+    onSave(payloadToSend);
     onClose();
   }
 
@@ -294,7 +334,6 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
         </Button>
       </div>
 
-      {/* ── Template Variant Selector ── */}
       {availableVariants.length > 1 && (
         <div className="space-y-1.5">
           <Label className="text-xs flex items-center gap-1.5">
@@ -317,7 +356,6 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
       )}
 
       <div className="grid gap-3">
-        {/* Headline */}
         <div>
           <div className="flex items-center justify-between mb-1">
             <Label className="text-xs">Headline</Label>
@@ -330,7 +368,6 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
           />
         </div>
 
-        {/* Subhead/Subtitle */}
         {supportsSubhead && (
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -347,7 +384,6 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
           </div>
         )}
 
-        {/* Body */}
         {supportsBody && (data.role === "body" || data.role === "frame") && (
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -363,7 +399,6 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
           </div>
         )}
 
-        {/* Bullets — only if template supports them */}
         {supportsBullets && (data.role === "body" || data.role === "frame") && (
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -387,7 +422,6 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
           </div>
         )}
 
-        {/* CTA */}
         {(data.role === "cta" || data.role === "frame_cta") && supportsCta && (
           <div>
             <div className="flex items-center justify-between mb-1">
@@ -403,12 +437,10 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
         )}
       </div>
 
-      {/* ── Aparência ── */}
       <Separator />
       <div className="space-y-3">
         <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wider">Aparência</h4>
 
-        {/* Tema */}
         <div className="space-y-1.5">
           <Label className="text-xs">Tema</Label>
           <ToggleGroup type="single" value={theme} onValueChange={(v) => v && setTheme(v as any)} size="sm" className="justify-start">
@@ -424,7 +456,6 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
           </ToggleGroup>
         </div>
 
-        {/* Scrim */}
         <div className="flex items-center justify-between">
           <Label className="text-xs">Scrim (overlay)</Label>
           <Switch checked={scrimEnabled} onCheckedChange={setScrimEnabled} />
@@ -461,7 +492,6 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
         )}
       </div>
 
-      {/* ── Warnings ── */}
       {warnings.length > 0 && (
         <>
           <Separator />

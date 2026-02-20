@@ -82,7 +82,6 @@ class SlideRenderResult:
 # ── Appearance resolution helpers ──────────────────────────────────
 
 def _resolve_effective_theme(variant: TemplateVariant, appearance: dict) -> tuple[str, list[str]]:
-    """Return (effective_theme, warnings)."""
     warnings = []
     theme_override = appearance.get("theme", "auto")
     if theme_override in ("light", "dark"):
@@ -98,11 +97,9 @@ def _resolve_effective_scrim(
     appearance: dict,
     has_image: bool = False,
 ) -> tuple[ScrimConfig, list[str]]:
-    """Merge slide appearance.scrim over variant defaults. Return (config, warnings)."""
     warnings = []
     scrim_override = appearance.get("scrim", {})
 
-    # Auto-enable scrim when image + text and no explicit override
     default_enabled = variant.scrim.enabled
     if has_image and "enabled" not in scrim_override:
         default_enabled = True
@@ -113,14 +110,13 @@ def _resolve_effective_scrim(
     strength = scrim_override.get("strength", variant.scrim.strength)
     position = scrim_override.get("position", variant.scrim.position)
     mode = scrim_override.get("mode", variant.scrim.scrim_mode)
-    color_mode = variant.scrim.mode  # "soft" or "dark"
+    color_mode = variant.scrim.mode  
 
     if "enabled" in scrim_override and scrim_override["enabled"] != variant.scrim.enabled:
         warnings.append("scrim_disabled" if not enabled else "scrim_enabled")
     if "strength" in scrim_override and scrim_override["strength"] != variant.scrim.strength:
         warnings.append("scrim_strength_changed")
 
-    # Track disabled reason
     if not enabled:
         if not has_image:
             warnings.append("scrim_disabled_reason:no_image")
@@ -170,7 +166,6 @@ class RenderService:
         self.data_dir = settings.data_dir
 
     async def render_project(self, project: Project, *, debug: bool = False) -> list[SlideRenderResult]:
-        """Render all slides. Returns per-slide results. Never raises 500 without details."""
         if not project.slides:
             raise AppError("invalid_state", "Project has no slides", status.HTTP_400_BAD_REQUEST)
 
@@ -194,7 +189,6 @@ class RenderService:
                 await browser.close()
         except Exception as exc:
             logger.exception("Browser-level render failure for project %s", project.id)
-            # Return partial results + a global error
             raise AppError(
                 "render_browser_crash",
                 f"Playwright crashed: {exc}",
@@ -216,13 +210,10 @@ class RenderService:
     async def _render_slide_safe(
         self, page: Page, project: Project, slide: Slide, log_file, *, debug: bool = False
     ) -> SlideRenderResult:
-        """Render a single slide, catching per-slide errors."""
         started = perf_counter()
         try:
-            # Resolve variant (validates template exists)
             variant = self._resolve_variant(project, slide)
 
-            # Log template info
             logger.info(
                 "Rendering slide %d: template_id=%s template_path=%s",
                 slide.index, variant.id, variant.file,
@@ -232,7 +223,6 @@ class RenderService:
             html_path, png_path = self._target_paths(project.id, slide.index)
             html_path.write_text(html_content, encoding="utf-8")
 
-            # Debug mode: save HTML to debug dir
             if debug:
                 debug_dir = self.data_dir / "projects" / str(project.id) / "renders" / "html_debug"
                 debug_dir.mkdir(parents=True, exist_ok=True)
@@ -241,20 +231,17 @@ class RenderService:
 
             await page.set_content(html_content, wait_until="domcontentloaded")
 
-            # Wait for fonts with short timeout
             try:
                 await page.wait_for_function("() => document.fonts.ready.then(() => true)", timeout=3000)
             except Exception:
                 warnings.append("font_wait_timeout")
 
-            # Wait for images — tolerant: skip imgs without src or with data-uri placeholders
             try:
                 await page.wait_for_function(
                     """
                     () => Array.from(document.images)
                         .filter(img => {
                             const src = img.getAttribute('src') || '';
-                            // Skip empty src, data-uri placeholders, and tiny placeholders
                             if (!src || src.startsWith('data:')) return false;
                             return true;
                         })
@@ -299,7 +286,6 @@ class RenderService:
                 f"{datetime.utcnow().isoformat()} slide={slide.index} ERROR code={exc.code} msg={exc.message} duration={duration:.3f}s\n"
             )
 
-            # Try to save a debug screenshot even on failure
             if debug:
                 try:
                     debug_dir = self.data_dir / "projects" / str(project.id) / "renders" / "html_debug"
@@ -343,11 +329,8 @@ class RenderService:
     async def render_template_preview(
         self, template_id: str, payload: dict[str, Any] | None = None, format_key: str = "carousel"
     ) -> tuple[bytes, list[str], dict[str, Any]]:
-        """Render a single template with mock/provided data. Returns (png_bytes, warnings, slot_info)."""
-        # Find the variant across all families
         variant, family_key, role_key = self._find_variant_by_id(template_id, format_key)
 
-        # Load slot schema
         try:
             if family_key not in {"carousel", "stories"}:
                 slot_schema = template_registry.get_family_slots_for_role(family_key, format_key, role_key)
@@ -356,16 +339,13 @@ class RenderService:
         except Exception:
             slot_schema = {"slots": {}}
 
-        # Build mock payload if none provided
         if not payload:
             payload = self._build_mock_payload(slot_schema, role_key)
 
-        # Determine which slots are missing
         all_slots = slot_schema.get("slots", {})
         missing_slots = [k for k in all_slots if k not in payload and all_slots[k].get("required")]
         warnings: list[str] = [f"slot_missing:{s}" for s in missing_slots]
 
-        # Create a mock slide
         mock_slide = type("MockSlide", (), {
             "index": 1,
             "role": SlideRole.COVER,
@@ -406,12 +386,10 @@ class RenderService:
         return png_bytes, warnings, slot_info
 
     def _find_variant_by_id(self, template_id: str, format_key: str) -> tuple[TemplateVariant, str, str]:
-        """Search all families/formats for a variant by ID."""
         registry = template_registry.registry
 
         for family_key, family_data in registry.items():
             if family_key in {"carousel", "stories"}:
-                # Legacy format
                 for role_key, variants in family_data.items():
                     if isinstance(variants, list):
                         for v in variants:
@@ -419,7 +397,6 @@ class RenderService:
                                 variant = template_registry.get_variant(family_key, role_key, template_id)
                                 return variant, family_key, role_key
             else:
-                # Family with format sub-keys
                 fmt_data = family_data.get(format_key, {})
                 for role_key, variants in fmt_data.items():
                     if isinstance(variants, list):
@@ -430,7 +407,6 @@ class RenderService:
 
         raise AppError("template_not_found", f"Template '{template_id}' not found in registry", status.HTTP_404_NOT_FOUND)
 
-    # ── Rich role-aware mock payloads ──────────────────────────────────
     _MOCK_DATA = {
         "cover": {
             "brand": "ContentForge",
@@ -482,7 +458,6 @@ class RenderService:
     }
 
     def _build_mock_payload(self, slot_schema: dict[str, Any], role_key: str) -> dict[str, Any]:
-        """Generate a rich, role-aware mock payload from slot definitions."""
         slots = slot_schema.get("slots", {})
         mock_defaults = self._MOCK_DATA.get(role_key, {})
         payload: dict[str, Any] = {}
@@ -514,7 +489,6 @@ class RenderService:
         format_key = FAMILY_MAP[project.type]
         family_name = selection.get("family") if isinstance(selection, dict) else None
 
-        # Priority: per-slide template_variant > payload.template_id > selection block > family default
         per_slide_variant = slide.payload.get("template_variant") if slide.payload else None
         selected_id = per_slide_variant
 
@@ -568,7 +542,6 @@ class RenderService:
         soup = BeautifulSoup(html, "html.parser")
         warnings: list[str] = []
 
-        # ── Resolve appearance overrides ──
         appearance = slide.payload.get("appearance", {})
         has_image = bool(slide.payload.get("image") or slide.image_path)
         effective_theme, theme_warnings = _resolve_effective_theme(variant, appearance)
@@ -577,7 +550,6 @@ class RenderService:
         effective_scrim, scrim_warnings = _resolve_effective_scrim(variant, appearance, has_image=has_image)
         warnings.extend(scrim_warnings)
 
-        # Inline CSS from <link> tags
         for link in soup.find_all("link", rel="stylesheet"):
             href = link.get("href")
             if not href:
@@ -591,7 +563,6 @@ class RenderService:
             else:
                 link.decompose()
 
-        # ── Apply theme class + scrim vars on .slide element ──
         slide_el = soup.select_one(".slide")
         if slide_el:
             classes = slide_el.get("class", [])
@@ -627,11 +598,44 @@ class RenderService:
             if existing_style.strip():
                 slide_el["style"] = existing_style.strip()
 
-        # Fill data-slot values
+        # Tradução de chaves da IA para o Premium
+        SLOT_ALIASES = {
+            "title": ["headline"],
+            "subtitle": ["subhead", "support"],
+            "cta_button": ["cta"],
+            "cta_title": ["headline", "title"],
+            "cta_body": ["subhead", "body"]
+        }
+
         for node in soup.select("[data-slot]"):
             slot_name = node.get("data-slot")
             value = slide.payload.get(slot_name)
+
+            if value is None and slot_name in SLOT_ALIASES:
+                for alias in SLOT_ALIASES[slot_name]:
+                    if slide.payload.get(alias):
+                        value = slide.payload.get(alias)
+                        break
+
+            # Validação rigorosa: strings vazias ou nulas viram ghost text se não forem apagadas
+            is_empty = False
             if value is None:
+                is_empty = True
+            elif isinstance(value, str) and not value.strip():
+                is_empty = True
+            elif isinstance(value, list) and len(value) == 0:
+                is_empty = True
+
+            if is_empty:
+                if node.name == "img":
+                    image_path = slide.image_path
+                    if image_path:
+                        src, warning = self._asset_uri(template_path, image_path)
+                        node["src"] = src
+                        if warning:
+                            warnings.append(f"{slot_name}:{warning}")
+                else:
+                    node.clear()
                 continue
 
             if node.name == "img":
@@ -654,18 +658,29 @@ class RenderService:
         return str(soup), warnings
 
     def _asset_uri(self, template_path: Path, value: str | None) -> tuple[str, str | None]:
-        # Valid 1x1 transparent PNG so naturalWidth > 0 and wait doesn't hang
         placeholder = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg=="
         if not value:
             return placeholder, "image_missing"
         if value.startswith(("http://", "https://")):
             return placeholder, "image_blocked_external"
+            
         potential = Path(value)
         if potential.exists():
             return potential.resolve().as_uri(), None
+            
+        # CORREÇÃO: Procura a imagem na pasta 'data' local do servidor
+        data_path = self.data_dir / value
+        if data_path.exists():
+            return data_path.resolve().as_uri(), None
+            
+        parent_data_path = self.data_dir.parent / value
+        if parent_data_path.exists():
+            return parent_data_path.resolve().as_uri(), None
+            
         relative = (template_path.parent / value).resolve()
         if relative.exists():
             return relative.as_uri(), None
+            
         return placeholder, "image_missing_disk"
 
     def _target_paths(self, project_id: UUID | str, index: int) -> tuple[Path, Path]:
