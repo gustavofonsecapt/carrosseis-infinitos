@@ -29,6 +29,7 @@ class TemplateVariant:
     theme: str = "light"          # "light" | "dark"
     scrim: ScrimConfig = field(default_factory=ScrimConfig)
     text_area: str = "center"     # "top" | "center" | "bottom"
+    uses_image: bool = False       # se a variante possui slot de imagem dedicado
 
 
 # Known format keys in registry.json (top-level keys that are formats, not families)
@@ -55,6 +56,7 @@ def _parse_variant(v: dict[str, Any], file_path: Path) -> TemplateVariant:
         theme=v.get("theme", "light"),
         scrim=_parse_scrim(v.get("scrim")),
         text_area=v.get("text_area", "center"),
+        uses_image=v.get("uses_image", False),
     )
 
 

@@ -10,6 +10,7 @@ from pathlib import Path
 from time import perf_counter
 from typing import Any
 from uuid import UUID
+import os
 
 from bs4 import BeautifulSoup, Tag
 from fastapi import status
@@ -111,7 +112,7 @@ def _resolve_effective_scrim(
     strength = scrim_override.get("strength", variant.scrim.strength)
     position = scrim_override.get("position", variant.scrim.position)
     mode = scrim_override.get("mode", variant.scrim.scrim_mode)
-    color_mode = variant.scrim.mode  
+    color_mode = variant.scrim.mode
 
     if "enabled" in scrim_override and scrim_override["enabled"] != variant.scrim.enabled:
         warnings.append("scrim_disabled" if not enabled else "scrim_enabled")
@@ -182,6 +183,7 @@ class RenderService:
                 browser = await p.chromium.launch()
                 page = await browser.new_page(viewport={"width": viewport[0], "height": viewport[1]})
                 with log_path.open("a", encoding="utf-8") as log_file:
+                    log_file.write(f"\\n--- RENDER START: {datetime.utcnow().isoformat()} ---\\n")
                     for slide in sorted(project.slides, key=lambda s: s.index):
                         result = await self._render_slide_safe(page, project, slide, log_file, debug=debug)
                         results.append(result)
@@ -213,12 +215,27 @@ class RenderService:
     ) -> SlideRenderResult:
         started = perf_counter()
         try:
-            variant = self._resolve_variant(project, slide)
+            variant, source = self._resolve_variant(project, slide)
 
-            logger.info(
-                "Rendering slide %d: template_id=%s template_path=%s",
-                slide.index, variant.id, variant.file,
-            )
+            # ─── DIAGNOSTIC LOGGING (START) ────────
+            image_path_str = str(slide.image_path) if slide.image_path else "N/A"
+            image_exists = "N/A"
+            if slide.image_path:
+                full_image_path = settings.data_dir.parent / slide.image_path.lstrip("/")
+                image_exists = "OK" if os.path.exists(full_image_path) else "MISSING"
+
+            log_file.write(f"""
+--- SLIDE {slide.index} DIAGNOSTICS ---
+  - Role:           {slide.role.value}
+  - Image Path:     {image_path_str}
+  - Image Exists:   {image_exists}
+  - Variant Source: {source}
+  - Variant ID:     {variant.id}
+  - Variant uses_image: {variant.uses_image}
+  - Payload:        {slide.payload}
+--------------------------------
+""")
+            # ─── DIAGNOSTIC LOGGING (END) ──────────
 
             html_content, warnings = self._build_html(slide, variant)
             html_path, png_path = self._target_paths(project.id, slide.index)
@@ -267,7 +284,7 @@ class RenderService:
                 f"theme={variant.theme} "
                 f"scrim={'yes' if variant.scrim.enabled else 'no'} "
                 f"duration={duration:.3f}s "
-                f"warnings={','.join(warnings) if warnings else 'none'}\n"
+                f"warnings={','.join(warnings) if warnings else 'none'}\\n"
             )
             log_file.write(log_entry)
 
@@ -284,7 +301,7 @@ class RenderService:
             duration = perf_counter() - started
             logger.error("Slide %d render failed: %s - %s", slide.index, exc.code, exc.message)
             log_file.write(
-                f"{datetime.utcnow().isoformat()} slide={slide.index} ERROR code={exc.code} msg={exc.message} duration={duration:.3f}s\n"
+                f"{datetime.utcnow().isoformat()} slide={slide.index} ERROR code={exc.code} msg={exc.message} duration={duration:.3f}s\\n"
             )
 
             if debug:
@@ -308,7 +325,7 @@ class RenderService:
             tb = traceback.format_exc()
             logger.exception("Unexpected error rendering slide %d", slide.index)
             log_file.write(
-                f"{datetime.utcnow().isoformat()} slide={slide.index} EXCEPTION {exc} duration={duration:.3f}s\n"
+                f"{datetime.utcnow().isoformat()} slide={slide.index} EXCEPTION {exc} duration={duration:.3f}s\\n"
             )
 
             if debug:
@@ -481,7 +498,7 @@ class RenderService:
 
         return payload
 
-    def _resolve_variant(self, project: Project, slide: Slide):
+    def _resolve_variant(self, project: Project, slide: Slide) -> tuple[TemplateVariant, str]:
         selection = project.template_selection or {}
         role_key = ROLE_KEY_MAP[project.type].get(slide.role)
         if not role_key:
@@ -490,11 +507,16 @@ class RenderService:
         format_key = FAMILY_MAP[project.type]
         family_name = selection.get("family") if isinstance(selection, dict) else None
 
+        source = "unknown"
         per_slide_variant = slide.payload.get("template_variant") if slide.payload else None
         selected_id = per_slide_variant
+        if selected_id:
+            source = "slide_payload_variant"
 
         if not selected_id:
             selected_id = slide.payload.get("template_id") if slide.payload else None
+            if selected_id:
+                source = "slide_payload_id"
 
         if not selected_id:
             if isinstance(selection, dict):
@@ -503,31 +525,57 @@ class RenderService:
                     selected_id = format_block.get(role_key)
                 else:
                     selected_id = selection.get(role_key)
+                if selected_id:
+                    source = "project_selection"
+
+        if slide.image_path and source != "slide_payload_variant":
+            current_variant_supports_image = False
+            if selected_id:
+                try:
+                    temp_variant = (
+                        template_registry.get_variant(family_name, role_key, selected_id, format_key=format_key)
+                        if family_name and family_name != "classic"
+                        else template_registry.get_variant(format_key, role_key, selected_id)
+                    )
+                    current_variant_supports_image = temp_variant.uses_image
+                except AppError:
+                    current_variant_supports_image = False
+
+            if not current_variant_supports_image:
+                variants = []
+                try:
+                    if family_name and family_name != "classic":
+                        variants = template_registry.registry[family_name][format_key][role_key]
+                    else:
+                        variants = template_registry.registry[format_key][role_key]
+                except KeyError:
+                    pass
+
+                image_capable_variant = next((v for v in variants if v.get("uses_image")), None)
+                if image_capable_variant:
+                    selected_id = image_capable_variant["id"]
+                    source = f"auto_promoted_from_{source}"
 
         if family_name and family_name != "classic":
             if not selected_id:
                 try:
                     family_variants = template_registry.registry[family_name][format_key][role_key]
                     selected_id = family_variants[0]["id"]
-                except KeyError:
+                    source = "family_default"
+                except (KeyError, IndexError):
                     available_roles = list(template_registry.registry.get(family_name, {}).get(format_key, {}).keys())
-                    available_ids = []
-                    for r, vs in template_registry.registry.get(family_name, {}).get(format_key, {}).items():
-                        available_ids.extend([v["id"] for v in vs])
                     raise AppError(
                         "template_not_found",
-                        f"Family '{family_name}' has no {format_key}/{role_key} variants. "
-                        f"Available roles: {available_roles}. Available IDs: {available_ids}",
+                        f"Family '{family_name}' has no {format_key}/{role_key} variants. Available: {available_roles}",
                         status.HTTP_400_BAD_REQUEST,
-                        {"family": family_name, "format": format_key, "role": role_key,
-                         "available_roles": available_roles, "available_ids": available_ids},
                     )
-            return template_registry.get_variant(family_name, role_key, selected_id, format_key=format_key)
+            return template_registry.get_variant(family_name, role_key, selected_id, format_key=format_key), source
         else:
             if not selected_id:
                 family_variants = template_registry.registry[format_key][role_key]
                 selected_id = family_variants[0]["id"]
-            return template_registry.get_variant(format_key, role_key, selected_id)
+                source = "classic_default"
+            return template_registry.get_variant(format_key, role_key, selected_id), source
 
     def _build_html(self, slide: Slide, variant: TemplateVariant) -> tuple[str, list[str]]:
         template_path = Path(variant.file)
@@ -649,7 +697,7 @@ class RenderService:
                 continue
 
             if isinstance(value, list):
-                bullets_text = "\n".join(f"• {item}" for item in value)
+                bullets_text = "\\n".join(f"• {item}" for item in value)
                 node.clear()
                 node.append(bullets_text)
             else:
