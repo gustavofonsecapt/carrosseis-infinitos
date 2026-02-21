@@ -9,7 +9,7 @@
     "image": { "required": false, "description": "Background or framed image", "recommended_ratio": "4:5" }
   },
   "variations": [
-    { "id": "cover_v1", "label": "Tipográfico", "uses_image": false },
+    { "id": "cover_v1", "label": "Tipográfico", "uses_image": true },
     { "id": "cover_v2", "label": "Imagem enquadrada", "uses_image": true },
     { "id": "cover_v3", "label": "Imagem full bleed", "uses_image": true }
   ]

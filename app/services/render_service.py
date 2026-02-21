@@ -528,33 +528,18 @@ class RenderService:
                 if selected_id:
                     source = "project_selection"
 
+        # All templates now support images natively — no auto-promote needed.
+        # Just log a warning if somehow a non-image template gets an image.
         if slide.image_path and source != "slide_payload_variant":
-            current_variant_supports_image = False
-            if selected_id:
-                try:
-                    temp_variant = (
-                        template_registry.get_variant(family_name, role_key, selected_id, format_key=format_key)
-                        if family_name and family_name != "classic"
-                        else template_registry.get_variant(format_key, role_key, selected_id)
-                    )
-                    current_variant_supports_image = temp_variant.uses_image
-                except AppError:
-                    current_variant_supports_image = False
-
-            if not current_variant_supports_image:
-                variants = []
-                try:
-                    if family_name and family_name != "classic":
-                        variants = template_registry.registry[family_name][format_key][role_key]
-                    else:
-                        variants = template_registry.registry[format_key][role_key]
-                except KeyError:
-                    pass
-
-                image_capable_variant = next((v for v in variants if v.get("uses_image")), None)
-                if image_capable_variant:
-                    selected_id = image_capable_variant["id"]
-                    source = f"auto_promoted_from_{source}"
+            try:
+                if family_name and family_name != "classic":
+                    temp_variant = template_registry.get_variant(family_name, role_key, selected_id, format_key=format_key)
+                else:
+                    temp_variant = template_registry.get_variant(format_key, role_key, selected_id)
+                if not temp_variant.uses_image:
+                    logger.warning("Slide %d has image but template %s declares uses_image=false", slide.index, selected_id)
+            except Exception:
+                pass
 
         if family_name and family_name != "classic":
             if not selected_id:

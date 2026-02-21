@@ -11,7 +11,7 @@
     "page_counter": { "required": false, "description": "Slide number indicator (e.g. 3/8)" }
   },
   "variations": [
-    { "id": "body_v1", "label": "Parágrafo editorial", "uses_image": false, "primary_slot": "body" },
+    { "id": "body_v1", "label": "Parágrafo editorial", "uses_image": true, "primary_slot": "body" },
     { "id": "body_v2", "label": "Lista com imagem", "uses_image": true, "primary_slot": "bullets" },
     { "id": "body_v3", "label": "Imagem + painel", "uses_image": true, "primary_slot": "body" }
   ]

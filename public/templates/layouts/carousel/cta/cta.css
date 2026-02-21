@@ -25,6 +25,25 @@
   margin-top: 48px;
 }
 
+/* Image fallback for all CTA variants */
+.cta-v1 img.img-cover[src*="placeholder"],
+.cta-v2 img.img-cover[src*="placeholder"],
+.cta-v3 img.img-cover[src*="placeholder"] { opacity: 0; }
+.cta-v1 img.img-cover[src*="placeholder"] + .overlay-dark,
+.cta-v2 img.img-cover[src*="placeholder"] + .overlay-dark,
+.cta-v3 img.img-cover[src*="placeholder"] + .overlay-dark { display: none; }
+/* Restore light theme when no image on v1/v2 */
+.cta-v1:has(img.img-cover[src*="placeholder"]) .content.inverted,
+.cta-v2:has(img.img-cover[src*="placeholder"]) .content.inverted { color: var(--fg); }
+.cta-v1:has(img.img-cover[src*="placeholder"]) .content.inverted .headline,
+.cta-v2:has(img.img-cover[src*="placeholder"]) .content.inverted .headline { color: var(--fg); }
+.cta-v1:has(img.img-cover[src*="placeholder"]) .content.inverted .cta-text,
+.cta-v2:has(img.img-cover[src*="placeholder"]) .content.inverted .cta-text { color: var(--fg); }
+.cta-v1:has(img.img-cover[src*="placeholder"]) .content.inverted .subcta,
+.cta-v2:has(img.img-cover[src*="placeholder"]) .content.inverted .subcta { color: var(--fg-muted); }
+.cta-v1:has(img.img-cover[src*="placeholder"]) .content.inverted .signature,
+.cta-v2:has(img.img-cover[src*="placeholder"]) .content.inverted .signature { color: var(--fg-muted); }
+
 /* V2: Left-aligned editorial with accent line */
 .cta-v2 .content {
   justify-content: center;

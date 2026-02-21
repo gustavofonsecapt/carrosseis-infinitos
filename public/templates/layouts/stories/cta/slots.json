@@ -7,11 +7,12 @@
     "headline": { "required": true, "max_chars": 45, "max_lines": 2, "description": "Closing headline" },
     "cta": { "required": true, "max_chars": 40, "description": "Call-to-action text" },
     "trigger_word": { "required": false, "max_chars": 20, "description": "Trigger word for DM automation" },
-    "signature": { "required": true, "max_chars": 40, "description": "Author handle" }
+    "signature": { "required": true, "max_chars": 40, "description": "Author handle" },
+    "image": { "required": false, "description": "Background image" }
   },
   "variations": [
-    { "id": "story_cta_v1", "label": "Central limpo", "uses_image": false },
-    { "id": "story_cta_v2", "label": "Editorial com acento", "uses_image": false },
-    { "id": "story_cta_v3", "label": "Fundo escuro", "uses_image": false }
+    { "id": "story_cta_v1", "label": "Central limpo", "uses_image": true },
+    { "id": "story_cta_v2", "label": "Editorial com acento", "uses_image": true },
+    { "id": "story_cta_v3", "label": "Fundo escuro", "uses_image": true }
   ]
 }
