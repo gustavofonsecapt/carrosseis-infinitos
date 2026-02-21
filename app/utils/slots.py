@@ -228,14 +228,10 @@ def build_role_schema(role: str, caps: dict[str, Any], slot_schema: dict[str, An
     elif role == "body":
         if caps["supports_title"]:
             required.append(_slot_desc(title_key))
-        if caps["bullets_strategy"]:
-            required.append(_slot_desc("bullets") + " — USE BULLETS, not paragraph")
-        elif caps["body_strategy"]:
+        if caps["supports_body"]:
             required.append(_slot_desc("body") + " — short paragraph")
-        elif caps["supports_body"]:
-            optional.append(_slot_desc("body"))
-        if caps["supports_bullets"] and not caps["bullets_strategy"]:
-            optional.append(_slot_desc("bullets"))
+        if caps["supports_bullets"]:
+            optional.append(_slot_desc("bullets") + " — USE BULLETS to complement the paragraph")
         if caps["supports_brand"]:
             optional.append(_slot_desc("brand"))
         if caps["supports_number"]:

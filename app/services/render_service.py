@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import mimetypes
 import logging
 import traceback
 from dataclasses import dataclass, field
@@ -663,24 +664,19 @@ class RenderService:
             return placeholder, "image_missing"
         if value.startswith(("http://", "https://")):
             return placeholder, "image_blocked_external"
-            
-        potential = Path(value)
-        if potential.exists():
-            return potential.resolve().as_uri(), None
-            
-        # CORREÇÃO: Procura a imagem na pasta 'data' local do servidor
-        data_path = self.data_dir / value
-        if data_path.exists():
-            return data_path.resolve().as_uri(), None
-            
-        parent_data_path = self.data_dir.parent / value
-        if parent_data_path.exists():
-            return parent_data_path.resolve().as_uri(), None
-            
-        relative = (template_path.parent / value).resolve()
-        if relative.exists():
-            return relative.as_uri(), None
-            
+
+        normalized = value.lstrip("/")
+
+        candidates = [Path(value), self.data_dir / normalized, self.data_dir.parent / normalized, template_path.parent / normalized]
+        for candidate in candidates:
+            resolved = candidate.resolve()
+            if not resolved.exists() or not resolved.is_file():
+                continue
+            mime, _ = mimetypes.guess_type(resolved.name)
+            mime = mime or "image/png"
+            encoded = base64.b64encode(resolved.read_bytes()).decode("ascii")
+            return f"data:{mime};base64,{encoded}", None
+
         return placeholder, "image_missing_disk"
 
     def _target_paths(self, project_id: UUID | str, index: int) -> tuple[Path, Path]:

@@ -100,44 +100,45 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
   const [slotSchema, setSlotSchema] = useState<Record<string, SlotSpec>>({});
   const [schemaLoaded, setSchemaLoaded] = useState(false);
 
-  // --- FUNÇÃO RADAR: Caça o texto em qualquer chave que a IA possa ter inventado ---
-  const extractValue = (obj1: any, obj2: any, keys: string[]) => {
+  const payload = data.payload || {};
+
+  const firstNonEmpty = (source: Record<string, any>, keys: string[]) => {
     for (const k of keys) {
-      if (obj1 && obj1[k]) return obj1[k];
-      if (obj2 && obj2[k]) return obj2[k];
+      const value = source?.[k];
+      if (Array.isArray(value) && value.length > 0) return value;
+      if (typeof value === "string" && value.trim()) return value;
+      if (value !== undefined && value !== null) return value;
     }
     return "";
   };
 
-  const p = typeof data.payload === 'string' ? JSON.parse(data.payload) : (data.payload || {});
-  
-  const getBullets = (source: any) => {
-    return (Array.isArray(source) ? source : typeof source === "string" ? source.split("\n") : []).join("\n");
+  const toBulletsText = (source: any) => {
+    if (Array.isArray(source)) return source.join("\n");
+    if (typeof source === "string") return source;
+    return "";
   };
 
-  // Dicionário de possíveis chaves geradas pela IA
-  const headlineKeys = ["title", "headline", "Title", "Headline", "heading", "h1"];
-  const subheadKeys = ["subtitle", "subhead", "support", "kicker", "Subtitle", "Subhead", "description"];
+  const headlineKeys = ["headline", "title", "cta_title", "Title", "Headline", "heading", "h1"];
+  const subheadKeys = ["subhead", "subtitle", "support", "kicker", "Subtitle", "Subhead", "description"];
   const bodyKeys = ["body", "text", "content", "Body", "paragraph"];
-  const ctaKeys = ["cta_button", "cta", "cta_title", "button"];
+  const ctaKeys = ["cta", "cta_button", "cta_title", "button"];
   const bulletKeys = ["bullets", "Bullets", "list"];
 
-  const [headline, setHeadline] = useState(extractValue(p, data, headlineKeys));
-  const [subhead, setSubhead] = useState(extractValue(p, data, subheadKeys));
-  const [body, setBody] = useState(extractValue(p, data, bodyKeys));
-  const [bullets, setBullets] = useState(getBullets(extractValue(p, data, bulletKeys)));
-  const [cta, setCta] = useState(extractValue(p, data, ctaKeys));
-  const [templateVariant, setTemplateVariant] = useState(p.template_variant || data.template_variant || "");
+  const [headline, setHeadline] = useState(String(firstNonEmpty(payload, headlineKeys) || ""));
+  const [subhead, setSubhead] = useState(String(firstNonEmpty(payload, subheadKeys) || ""));
+  const [body, setBody] = useState(String(firstNonEmpty(payload, bodyKeys) || ""));
+  const [bullets, setBullets] = useState(toBulletsText(firstNonEmpty(payload, bulletKeys)));
+  const [cta, setCta] = useState(String(firstNonEmpty(payload, ctaKeys) || ""));
+  const [templateVariant, setTemplateVariant] = useState(payload.template_variant || data.template_variant || "");
 
-  // Força atualização se houver dados novos vindo do backend
   useEffect(() => {
-    const currentP = typeof data.payload === 'string' ? JSON.parse(data.payload) : (data.payload || {});
-    setHeadline(extractValue(currentP, data, headlineKeys));
-    setSubhead(extractValue(currentP, data, subheadKeys));
-    setBody(extractValue(currentP, data, bodyKeys));
-    setBullets(getBullets(extractValue(currentP, data, bulletKeys)));
-    setCta(extractValue(currentP, data, ctaKeys));
-    setTemplateVariant(currentP.template_variant || data.template_variant || "");
+    const currentPayload = data.payload || {};
+    setHeadline(String(firstNonEmpty(currentPayload, headlineKeys) || ""));
+    setSubhead(String(firstNonEmpty(currentPayload, subheadKeys) || ""));
+    setBody(String(firstNonEmpty(currentPayload, bodyKeys) || ""));
+    setBullets(toBulletsText(firstNonEmpty(currentPayload, bulletKeys)));
+    setCta(String(firstNonEmpty(currentPayload, ctaKeys) || ""));
+    setTemplateVariant(currentPayload.template_variant || data.template_variant || "");
   }, [data]);
 
   const [availableVariants, setAvailableVariants] = useState<TemplateVariantInfo[]>([]);
@@ -253,64 +254,46 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
 
   // --- SALVAMENTO NÃO-DESTRUTIVO ---
   function handleSave() {
-    const p = typeof data.payload === 'string' ? JSON.parse(data.payload) : (data.payload || {});
-    const updatedPayload: Record<string, any> = { ...p };
+    const updatedPayload: Record<string, any> = { ...(data.payload || {}) };
 
-    // Salva TODAS as variações simultaneamente para agradar o React e o Jinja2
-    updatedPayload.headline = headline;
-    updatedPayload.title = headline;
-    
+    updatedPayload.headline = headline || null;
+    updatedPayload.title = headline || null;
+
     if (supportsSubhead) {
       updatedPayload.subhead = subhead || null;
       updatedPayload.subtitle = subhead || null;
       updatedPayload.support = subhead || null;
     }
-    
+
     if (supportsCta && (data.role === "cta" || data.role === "frame_cta")) {
       updatedPayload.cta = cta || null;
       updatedPayload.cta_button = cta || null;
+      updatedPayload.cta_title = headline || null;
     }
 
-    if (isCarousel && supportsBody && (data.role === "body" || data.role === "frame")) {
+    if (supportsBody && (data.role === "body" || data.role === "frame")) {
       updatedPayload.body = body || null;
     }
-    
+
     if (supportsBullets && (data.role === "body" || data.role === "frame")) {
-      updatedPayload.bullets = bullets ? bullets.split("\n").filter(Boolean) : [];
+      updatedPayload.bullets = bullets ? bullets.split("\n").map((item) => item.trim()).filter(Boolean) : [];
     }
 
-    const payloadToSend: Record<string, any> = {
-      ...data,
-      payload: updatedPayload,
-      appearance: {
-        theme,
-        scrim: {
-          enabled: scrimEnabled,
-          strength: parseFloat(scrimStrength),
-          position: scrimPosition,
-          mode: scrimMode,
-        },
+    updatedPayload.appearance = {
+      theme,
+      scrim: {
+        enabled: scrimEnabled,
+        strength: parseFloat(scrimStrength),
+        position: scrimPosition,
+        mode: scrimMode,
       },
     };
 
     if (templateVariant) {
-      payloadToSend.template_variant = templateVariant;
       updatedPayload.template_variant = templateVariant;
+    } else {
+      delete updatedPayload.template_variant;
     }
-
-    // Espelha na raiz por segurança (fallback)
-    payloadToSend.headline = headline;
-    payloadToSend.title = headline;
-    payloadToSend.subhead = subhead || null;
-    payloadToSend.subtitle = subhead || null;
-    payloadToSend.body = body || null;
-    payloadToSend.bullets = updatedPayload.bullets;
-    payloadToSend.cta = cta || null;
-    payloadToSend.cta_button = cta || null;
-
-    // AQUI ESTAVA O SEU BUG: Removidas as linhas "delete updatedPayload.headline" 
-    // e "delete payloadToSend.image_path". Ao deixar de apagar as coisas, a imagem não
-    // some mais, e o modal voltará a ler o texto que acabou de salvar.
 
     if (warnings.length > 0) {
       toast.warning(`Salvo com avisos: ${warnings.length} campo(s) excedem o limite`);
@@ -318,7 +301,7 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
       toast.success("Card salvo! Renderize novamente para ver o resultado final.");
     }
 
-    onSave(payloadToSend);
+    onSave(updatedPayload);
     onClose();
   }
 
