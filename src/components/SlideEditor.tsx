@@ -118,7 +118,7 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
     return "";
   };
 
-  const headlineKeys = ["headline", "title", "Title", "Headline", "heading", "h1"];
+  const headlineKeys = ["headline", "title", "cta_title", "Title", "Headline", "heading", "h1"];
   const subheadKeys = ["subhead", "subtitle", "support", "kicker", "Subtitle", "Subhead", "description"];
   const bodyKeys = ["body", "text", "content", "Body", "paragraph"];
   const ctaKeys = ["cta", "cta_button", "cta_title", "button"];
@@ -268,6 +268,7 @@ export default function SlideEditor({ format, data, familyName, onSave, onUpload
     if (supportsCta && (data.role === "cta" || data.role === "frame_cta")) {
       updatedPayload.cta = cta || null;
       updatedPayload.cta_button = cta || null;
+      updatedPayload.cta_title = headline || null;
     }
 
     if (supportsBody && (data.role === "body" || data.role === "frame")) {

@@ -35,7 +35,7 @@ function mapApiSlideToUiSlide(apiSlide: ApiSlide): UiSlide {
     n: apiSlide.index,
     role: apiSlide.role,
     payload: p,
-    headline: (first("headline", "title", "h1", "heading") as string) || "",
+    headline: (first("headline", "title", "cta_title", "h1", "heading") as string) || "",
     image_path: apiSlide.image_path,
     render_path: apiSlide.render_path,
     subhead: (first("subhead", "subtitle", "support", "kicker", "description") as string) || undefined,
@@ -89,7 +89,7 @@ export async function generateOutline(
 ): Promise<Project> {
   return http<Project>(`/api/projects/${projectId}/generate-outline`, {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ payload }),
   });
 }
 
