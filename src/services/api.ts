@@ -141,7 +141,7 @@ export async function updateSlide(
 ): Promise<UiSlide> {
   const updated = await http<ApiSlide>(`/api/projects/${projectId}/slides/${slideN}`, {
     method: "PATCH",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ payload }),
   });
   return mapApiSlideToUiSlide(updated);
 }

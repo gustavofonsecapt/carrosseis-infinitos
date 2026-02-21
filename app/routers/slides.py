@@ -13,56 +13,14 @@ from app.models import Slide
 from app.schemas.slide import SlideResponse, SlideUpdate
 from app.services.project_service import ProjectService
 from app.services.slide_service import SlideService
-from app.services.template_service import template_registry
 
 router = APIRouter(prefix="/api/projects/{project_id}/slides", tags=["slides"])
 
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024  # 10 MB
-_ROLE_REGISTRY_KEY = {
-    "cover": "cover",
-    "body": "body",
-    "cta": "cta",
-    "frame": "frame",
-    "frame_cta": "cta",
-}
-_FORMAT_REGISTRY_KEY = {
-    "carousel": "carousel",
-    "stories_10x": "stories",
-}
 
 
 def get_services(db: Session = Depends(get_db)) -> tuple[ProjectService, SlideService]:
     return ProjectService(db), SlideService(db)
-
-
-def _choose_image_variant(project, slide: Slide) -> str | None:
-    """Pick an image-capable template variant for this slide role/format when possible."""
-    format_key = _FORMAT_REGISTRY_KEY.get(str(project.type))
-    role_key = _ROLE_REGISTRY_KEY.get(str(slide.role))
-    if not format_key or not role_key:
-        return None
-
-    family = (project.template_selection or {}).get("family")
-    if family and family != "classic":
-        slots = template_registry.get_family_slots(family)
-        variations = slots.get("variations", {}).get(format_key, {}).get(role_key, [])
-    else:
-        slots = template_registry.get_slots(f"{format_key}/{role_key}")
-        variations = slots.get("variations", [])
-
-    if not variations:
-        return None
-
-    current_variant = (slide.payload or {}).get("template_variant") or (slide.payload or {}).get("template_id")
-    for variant in variations:
-        if variant.get("id") == current_variant and variant.get("uses_image"):
-            return None
-
-    for variant in variations:
-        if variant.get("uses_image"):
-            return variant.get("id")
-
-    return None
 
 
 @router.get("", response_model=list[SlideResponse])
@@ -134,7 +92,7 @@ async def upload_slide_image(
 ) -> SlideResponse:
     project_service, slide_service = services
     try:
-        project = project_service.get_project(project_id)
+        project_service.get_project(project_id)
     except ValueError as exc:
         raise AppError("project_not_found", str(exc), status.HTTP_404_NOT_FOUND, {"project_id": str(project_id)}) from exc
     try:
@@ -163,15 +121,8 @@ async def upload_slide_image(
     slide.image_path = str(dest.relative_to(settings.data_dir.parent))
     slide.render_path = None
 
-    preferred_variant = _choose_image_variant(project, slide)
-    if preferred_variant:
-        payload_copy = dict(slide.payload) if slide.payload else {}
-        payload_copy["template_variant"] = preferred_variant
-        payload_copy["template_id"] = preferred_variant
-        slide.payload = payload_copy
-
-    # GUARD: preserve explicit template selections that already existed before upload.
-    if slide.payload and (frozen_template_id is not None or frozen_template_variant is not None):
+    # GUARD: upload must NEVER alter template_id or template_variant
+    if slide.payload:
         payload_copy = dict(slide.payload)
         if frozen_template_id is not None:
             payload_copy["template_id"] = frozen_template_id
