@@ -34,6 +34,7 @@ export interface TemplateVariantInfo {
 export interface UiSlide {
   n: number;
   role: SlideRole;
+  payload: Record<string, any>;
   // Common fields
   headline: string;
   image_path: string | null;

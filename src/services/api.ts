@@ -28,23 +28,26 @@ async function http<T>(path: string, options: RequestInit = {}): Promise<T> {
 
 // ── Mappers ──
 function mapApiSlideToUiSlide(apiSlide: ApiSlide): UiSlide {
-  const p = apiSlide.payload;
+  const p = apiSlide.payload || {};
+  const first = (...keys: string[]) => keys.map((k) => p[k]).find((v) => v !== undefined && v !== null && (!(typeof v === "string") || v.trim() !== ""));
+
   return {
     n: apiSlide.index,
     role: apiSlide.role,
-    headline: p.headline || "",
+    payload: p,
+    headline: (first("headline", "title", "cta_title", "h1", "heading") as string) || "",
     image_path: apiSlide.image_path,
     render_path: apiSlide.render_path,
-    subhead: p.subhead,
-    body: p.body,
-    bullets: p.bullets,
-    cta: p.cta,
+    subhead: (first("subhead", "subtitle", "support", "kicker", "description") as string) || undefined,
+    body: (first("body", "text", "content", "paragraph") as string) || undefined,
+    bullets: Array.isArray(p.bullets) ? p.bullets : Array.isArray(p.list) ? p.list : undefined,
+    cta: (first("cta", "cta_button", "button") as string) || undefined,
     subcta: p.subcta,
     support: p.support,
     kicker: p.kicker,
     progress: p.progress,
     trigger_word: p.trigger_word,
-    appearance: p.appearance || undefined,
+    appearance: (p.appearance || apiSlide.payload?.appearance) || undefined,
     template_variant: p.template_variant || undefined,
   };
 }
@@ -86,7 +89,7 @@ export async function generateOutline(
 ): Promise<Project> {
   return http<Project>(`/api/projects/${projectId}/generate-outline`, {
     method: "POST",
-    body: JSON.stringify(payload),
+    body: JSON.stringify({ payload }),
   });
 }
 

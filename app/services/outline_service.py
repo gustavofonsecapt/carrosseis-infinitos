@@ -123,10 +123,10 @@ class OutlineService:
 
         cover_example = f'{{"n":1,"role":"cover","{tk}":"...","{ sk}":"..."}}'
         body_example = f'{{"n":2,"role":"body","{btk}":"..."'
-        if body_caps["bullets_strategy"]:
-            body_example += ',"bullets":["...","...","..."]'
-        elif body_caps["body_strategy"]:
+        if body_caps["supports_body"]:
             body_example += ',"body":"..."'
+        if body_caps["supports_bullets"]:
+            body_example += ',"bullets":["...","...","..."]'
         body_example += "}"
 
         cta_example = f'{{"n":8,"role":"cta","{cta_title_key}":"...","{cta_button_key}":"..."}}'
@@ -407,10 +407,10 @@ Saída obrigatória (JSON puro):
             for n in range(2, last):
                 body: dict[str, Any] = {"n": n, "role": "body"}
                 body[btk] = f"Ponto {n - 1}"
-                if body_caps["bullets_strategy"]:
-                    body["bullets"] = [f"Insight {i} sobre {topic}" for i in range(1, 4)]
-                elif body_caps["body_strategy"] or body_caps["supports_body"]:
+                if body_caps["supports_body"]:
                     body["body"] = f"Detalhes do ponto {n - 1} sobre {topic}."
+                if body_caps["supports_bullets"]:
+                    body["bullets"] = [f"Insight {i} sobre {topic}" for i in range(1, 4)]
                 if body_caps["supports_number"]:
                     body["number"] = f"{n:02d}/{total:02d}"
                 body["image_brief"] = "Imagem ilustrativa"
