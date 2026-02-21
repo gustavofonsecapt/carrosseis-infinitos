@@ -106,3 +106,17 @@
 .story-cta-v3 .signature {
   margin-top: 56px;
 }
+
+/* Image fallback for all story CTA variants */
+.story-cta-v1 img.img-cover[src*="placeholder"],
+.story-cta-v2 img.img-cover[src*="placeholder"],
+.story-cta-v3 img.img-cover[src*="placeholder"] { opacity: 0; }
+.story-cta-v1 img.img-cover[src*="placeholder"] + .overlay-dark,
+.story-cta-v2 img.img-cover[src*="placeholder"] + .overlay-dark,
+.story-cta-v3 img.img-cover[src*="placeholder"] + .overlay-dark { display: none; }
+.story-cta-v1:has(img.img-cover[src*="placeholder"]) .content.inverted,
+.story-cta-v2:has(img.img-cover[src*="placeholder"]) .content.inverted { color: var(--fg); }
+.story-cta-v1:has(img.img-cover[src*="placeholder"]) .content.inverted .headline,
+.story-cta-v2:has(img.img-cover[src*="placeholder"]) .content.inverted .headline { color: var(--fg); }
+.story-cta-v1:has(img.img-cover[src*="placeholder"]) .content.inverted .cta-text,
+.story-cta-v2:has(img.img-cover[src*="placeholder"]) .content.inverted .cta-text { color: var(--fg); }

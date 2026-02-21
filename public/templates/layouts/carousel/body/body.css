@@ -22,6 +22,22 @@
   font-style: italic;
 }
 
+.body-v1 .image-zone {
+  height: 340px;
+  margin-bottom: 32px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+}
+.body-v1 .image-zone img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.body-v1 .image-zone:has(img[src=""]),
+.body-v1 .image-zone:has(img[src*="placeholder"]) {
+  display: none;
+}
+
 /* V2: Bullets list + optional image window */
 .body-v2 .content {
   justify-content: center;

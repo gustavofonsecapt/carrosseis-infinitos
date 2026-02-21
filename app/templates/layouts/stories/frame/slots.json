@@ -11,7 +11,7 @@
     "progress": { "required": false, "description": "Progress indicator (e.g. 3/10)" }
   },
   "variations": [
-    { "id": "story_v1", "label": "Tipográfico limpo", "uses_image": false },
+    { "id": "story_v1", "label": "Tipográfico limpo", "uses_image": true },
     { "id": "story_v2", "label": "Imagem enquadrada", "uses_image": true },
     { "id": "story_v3", "label": "Imagem full bleed", "uses_image": true }
   ]

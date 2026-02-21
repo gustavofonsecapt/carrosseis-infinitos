@@ -8,14 +8,16 @@
 </head>
 <body>
 <div class="slide story-cta-v2">
-  <div class="content" style="padding-top:220px;padding-bottom:300px;justify-content:center">
+  <img data-slot="image" class="img-cover" src="../../assets/images/placeholder.jpg" alt="">
+  <div class="overlay-dark"></div>
+  <div class="content inverted" style="padding-top:220px;padding-bottom:300px;justify-content:center">
     <div class="accent-line"></div>
     <h1 data-slot="headline" class="headline clamp-2">Pronto para o próximo nível?</h1>
     <p data-slot="cta" class="cta-text">Responde esse story com a palavra abaixo</p>
     <span data-slot="trigger_word" class="trigger">CRESCER</span>
   </div>
-  <div style="position:absolute;bottom:300px;left:var(--pad)">
-    <span data-slot="signature" class="signature">@seuhandle</span>
+  <div style="position:absolute;bottom:300px;left:var(--pad);z-index:1">
+    <span data-slot="signature" class="signature" style="color:rgba(250,250,248,0.5)">@seuhandle</span>
   </div>
 </div>
 </body>

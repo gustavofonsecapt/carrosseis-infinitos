@@ -31,19 +31,19 @@
         { "id": "pe_cover_v3", "label": "Dark Editorial", "uses_image": true, "primary_slots": ["title", "subtitle", "image"] }
       ],
       "body": [
-        { "id": "pe_body_v1", "label": "Type-led Minimal", "uses_image": false, "primary_slots": ["title", "body", "bullets"] },
+        { "id": "pe_body_v1", "label": "Type-led Minimal", "uses_image": true, "primary_slots": ["title", "body", "bullets"] },
         { "id": "pe_body_v2", "label": "Image-card + Bullets", "uses_image": true, "primary_slots": ["title", "bullets", "image"] },
         { "id": "pe_body_v3", "label": "Dark Editorial", "uses_image": false, "primary_slots": ["title", "body"] }
       ],
       "cta": [
-        { "id": "pe_cta_v1", "label": "Minimal CTA", "uses_image": false, "primary_slots": ["cta_title", "cta_body", "cta_button"] },
+        { "id": "pe_cta_v1", "label": "Minimal CTA", "uses_image": true, "primary_slots": ["cta_title", "cta_body", "cta_button"] },
         { "id": "pe_cta_v2", "label": "Editorial CTA", "uses_image": true, "primary_slots": ["cta_title", "cta_body", "cta_button"] },
         { "id": "pe_cta_v3", "label": "Dark CTA", "uses_image": false, "primary_slots": ["cta_title", "cta_body", "cta_button"] }
       ]
     },
     "stories": {
       "frame": [
-        { "id": "pe_story_v1", "label": "Type-led Minimal", "uses_image": false, "primary_slots": ["title", "body", "number"] },
+        { "id": "pe_story_v1", "label": "Type-led Minimal", "uses_image": true, "primary_slots": ["title", "body", "number"] },
         { "id": "pe_story_v2", "label": "Image-card Editorial", "uses_image": true, "primary_slots": ["title", "subtitle", "image"] },
         { "id": "pe_story_v3", "label": "Dark Editorial", "uses_image": true, "primary_slots": ["title", "subtitle", "image"] }
       ]
