@@ -89,7 +89,7 @@ export async function generateOutline(
 ): Promise<Project> {
   return http<Project>(`/api/projects/${projectId}/generate-outline`, {
     method: "POST",
-    body: JSON.stringify({ payload }),
+    body: JSON.stringify(payload),
   });
 }
 
